@@ -344,6 +344,18 @@
       <label for="roiInput">ROI</label>
       <input id="roiInput" type="text" value="300,120,80,40">
     </div>
+    <div class="field">
+      <label for="scaleInput">Scale</label>
+      <input id="scaleInput" type="number" min="0.01" step="any" value="100" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="trackerSelect">Tracker</label>
+      <select id="trackerSelect">
+        <option value="mosse">MOSSE</option>
+        <option value="kcf">KCF</option>
+        <option value="csrt">CSRT</option>
+      </select>
+    </div>
     <button id="analyzeButton">Analyze</button>
     <button class="secondary" id="resetButton">Reset</button>
   </section>
@@ -391,6 +403,8 @@
   const serviceCheckButton = document.getElementById("serviceCheckButton");
   const serviceStatus = document.getElementById("serviceStatus");
   const roiInput = document.getElementById("roiInput");
+  const scaleInput = document.getElementById("scaleInput");
+  const trackerSelect = document.getElementById("trackerSelect");
   const repList = document.getElementById("repList");
   const fileName = document.getElementById("fileName");
   const analysisName = document.getElementById("analysisName");
@@ -496,6 +510,8 @@
   async function runServiceAnalysis() {
     const baseUrl = normalizeServiceUrl(serviceUrl.value);
     const roi = roiInput.value.trim();
+    const scale = scaleInput.value.trim();
+    const tracker = trackerSelect.value || "mosse";
     const file = videoInput.files[0];
 
     if (!file) {
@@ -522,10 +538,20 @@
       status.textContent = "Analysis failed";
       return;
     }
+    if (scale && !isPositiveNumber(scale)) {
+      serviceStatus.textContent = "Invalid scale";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
 
     const formData = new FormData();
     formData.append("video", file);
     formData.append("roi", roi);
+    formData.append("tracker", tracker);
+    if (scale) {
+      formData.append("scale_px_per_meter", scale);
+    }
 
     analyzeButton.disabled = true;
     status.textContent = "Analyzing";
@@ -592,6 +618,11 @@
     }
     const numbers = parts.map((part) => Number(part));
     return numbers.every((number) => Number.isInteger(number)) && numbers[2] > 0 && numbers[3] > 0;
+  }
+
+  function isPositiveNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0;
   }
 
   function isDemoMode() {

@@ -25,12 +25,15 @@ The mobile prototype includes a service URL field and health check button. Start
 
 The prototype can also send the selected video to `POST /analyze`. Keep the default ROI of `300,120,80,40` for the included sample clip, or edit the ROI field before pressing Analyze.
 
+The prototype forwards compact analysis options too: tracker selection defaults to `mosse`, and scale defaults to `100` pixels per meter. Leave scale blank for pixel-only speed output.
+
 Example:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/analyze \
   -F video=@lift.mp4 \
   -F roi=300,120,80,40 \
+  -F tracker=mosse \
   -F scale_px_per_meter=100
 ```
 

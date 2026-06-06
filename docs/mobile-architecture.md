@@ -29,6 +29,7 @@ For the immediate prototype, plain HTML/CSS/JS keeps the project dependency-ligh
 - Analysis status: queued, processing, complete, failed.
 - Set review: annotated playback, summary metrics, per-rep table, velocity loss, and bar path.
 - Per-rep jump / play-segment controls: when an analysis JSON includes `start_time_s` and `end_time_s`, each rep row exposes two compact icon buttons (jump-to-start, play-segment). The play button attaches a one-shot `timeupdate` listener that pauses the existing `<video id="video">` at `end_time_s` and removes the listener, with no `setInterval` or leaked handlers. Both controls are disabled when no video is loaded or when rep timing is missing.
+- Local session history: the prototype stores up to five compact analysis entries in `localStorage` under `bbtracking.history.v1`. Entries keep the JSON payload and small metadata only; video files and blob URLs are not stored.
 
 ## Upgrade Path
 

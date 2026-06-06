@@ -386,6 +386,123 @@
       margin: 0;
       padding-left: 18px;
     }
+
+    .history {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .history-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .history-clear {
+      min-height: 30px;
+      width: auto;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: #ffffff;
+      color: var(--red);
+      border: 1px solid var(--red);
+      border-radius: 6px;
+    }
+
+    .history-empty {
+      color: var(--muted);
+      font-size: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .history-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: #ffffff;
+    }
+
+    .history-item .hi-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .history-item .hi-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+    }
+
+    .history-item .hi-source {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .history-item .hi-actions {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: stretch;
+      min-width: 84px;
+    }
+
+    .hi-button {
+      min-height: 28px;
+      width: auto;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .hi-button.restore {
+      background: var(--blue);
+      color: #ffffff;
+      border: 1px solid var(--blue);
+    }
+
+    .hi-button.delete {
+      background: #ffffff;
+      color: var(--red);
+      border: 1px solid var(--red);
+    }
   </style>
 </head>
 <body>
@@ -496,6 +613,14 @@
     <strong>Tracking warnings</strong>
     <ul id="warningsList"></ul>
   </section>
+  <section class="history" id="history" aria-label="Recent analyses" hidden>
+    <div class="history-header">
+      <div class="history-title">History</div>
+      <button class="history-clear" id="historyClear" type="button" hidden>Clear</button>
+    </div>
+    <div class="history-empty" id="historyEmpty">No recent analyses</div>
+    <div class="history-list" id="historyList"></div>
+  </section>
 </main>
 
 <script>
@@ -529,6 +654,13 @@
   const analysisName = document.getElementById("analysisName");
   const velocityChart = document.getElementById("velocityChart");
   const pathChart = document.getElementById("pathChart");
+  const historySection = document.getElementById("history");
+  const historyList = document.getElementById("historyList");
+  const historyEmpty = document.getElementById("historyEmpty");
+  const historyClear = document.getElementById("historyClear");
+
+  const HISTORY_STORAGE_KEY = "bbtracking.history.v1";
+  const HISTORY_MAX_ENTRIES = 5;
 
   let videoUrl = null;
   let calibrationActive = false;
@@ -638,6 +770,7 @@
       analysisName.textContent = file.name;
       analysisName.classList.remove("error");
       status.textContent = "Analysis loaded";
+      recordAnalysisEntry(payload, `json:${file.name}`);
     } catch (error) {
       analysisName.textContent = "Invalid JSON";
       analysisName.classList.add("error");
@@ -673,8 +806,12 @@
 
   analyzeButton.addEventListener("click", () => {
     if (isDemoMode()) {
-      renderAnalysis(buildDemoPayload());
+      const demoPayload = buildDemoPayload();
+      renderAnalysis(demoPayload);
+      analysisName.textContent = "Demo";
+      analysisName.classList.remove("error");
       status.textContent = "Analysis preview";
+      recordAnalysisEntry(demoPayload, "Demo");
       return;
     }
     runServiceAnalysis();
@@ -927,6 +1064,7 @@
       renderAnalysis(payload);
       analysisName.textContent = "Service response";
       status.textContent = "Analysis complete";
+      recordAnalysisEntry(payload, "service");
       await loadAnnotatedVideo(baseUrl, completeJob.job_id);
     } catch (error) {
       analysisName.textContent = "Service error";
@@ -1033,6 +1171,214 @@
   function isDemoMode() {
     return new URLSearchParams(window.location.search).get("demo") === "1";
   }
+
+  function getHistoryStorage() {
+    try {
+      const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((entry) => entry && typeof entry === "object" && entry.payload);
+    } catch (error) {
+      // Corrupt JSON or storage disabled: treat as empty rather than crash.
+      try {
+        window.localStorage.removeItem(HISTORY_STORAGE_KEY);
+      } catch (cleanupError) {
+        // Ignore cleanup failures.
+      }
+      return [];
+    }
+  }
+
+  function saveHistoryStorage(entries) {
+    try {
+      window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries));
+      return true;
+    } catch (error) {
+      // localStorage may be unavailable (private mode) or full.
+      status.textContent = "History storage unavailable";
+      return false;
+    }
+  }
+
+  function summarizePayload(payload) {
+    const summary = (payload && payload.summary) || {};
+    const reps = Array.isArray(payload && payload.reps) ? payload.reps : [];
+    const frames = Array.isArray(payload && payload.frames) ? payload.frames : [];
+    const repCount = Number(summary.rep_count) || reps.length;
+    const peak = Number(summary.max_speed_m_s ?? summary.max_speed_px_s);
+    const avg = Number(summary.avg_speed_m_s ?? summary.avg_speed_px_s);
+    const unit = Number.isFinite(Number(summary.max_speed_m_s)) || Number.isFinite(Number(summary.avg_speed_m_s)) ? "m/s" : "px/s";
+    return {
+      reps: Number.isFinite(repCount) ? repCount : null,
+      peak: Number.isFinite(peak) ? peak : null,
+      avg: Number.isFinite(avg) ? avg : null,
+      unit,
+      frameCount: frames.length
+    };
+  }
+
+  function recordAnalysisEntry(payload, source) {
+    if (!payload || typeof payload !== "object") return;
+    const summary = summarizePayload(payload);
+    const entry = {
+      id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      created_at: new Date().toISOString(),
+      exercise: exerciseSelectValue(),
+      source: source || "unknown",
+      summary: {
+        reps: summary.reps,
+        avg: summary.avg,
+        peak: summary.peak,
+        unit: summary.unit
+      },
+      payload
+    };
+    const existing = getHistoryStorage();
+    // Deduplicate by created_at: keep the newest at the top.
+    const filtered = existing.filter((item) => item.created_at !== entry.created_at);
+    filtered.unshift(entry);
+    const trimmed = filtered.slice(0, HISTORY_MAX_ENTRIES);
+    if (saveHistoryStorage(trimmed)) {
+      renderHistory();
+    }
+  }
+
+  function formatTimestamp(isoString) {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function formatHistorySpeed(value) {
+    if (!Number.isFinite(Number(value))) return "--";
+    const number = Number(value);
+    if (Math.abs(number) >= 100) return `${number.toFixed(0)}`;
+    return `${number.toFixed(2)}`;
+  }
+
+  function formatHistorySource(source) {
+    const value = String(source || "").toLowerCase();
+    if (value.startsWith("json:")) return "JSON";
+    if (value === "service") return "Service";
+    if (value === "demo") return "Demo";
+    return "History";
+  }
+
+  function deleteHistoryEntry(id) {
+    const existing = getHistoryStorage();
+    const next = existing.filter((entry) => entry.id !== id);
+    saveHistoryStorage(next);
+    renderHistory();
+  }
+
+  function restoreHistoryEntry(id) {
+    const existing = getHistoryStorage();
+    const entry = existing.find((item) => item.id === id);
+    if (!entry || !entry.payload) {
+      status.textContent = "History entry missing";
+      return;
+    }
+    try {
+      renderAnalysis(entry.payload);
+      // Do not change video.src on restore.
+      const sourceLabel = String(entry.source || "history").startsWith("json:")
+        ? "Restored (JSON)"
+        : entry.source === "service"
+          ? "Restored (service)"
+          : entry.source === "Demo"
+            ? "Restored (demo)"
+            : "Restored";
+      analysisName.textContent = sourceLabel;
+      analysisName.classList.remove("error");
+      status.textContent = "Restored from history";
+      refreshRepControlsState();
+    } catch (error) {
+      status.textContent = "Restore failed";
+    }
+  }
+
+  function clearHistory() {
+    saveHistoryStorage([]);
+    renderHistory();
+    status.textContent = "History cleared";
+  }
+
+  function renderHistory() {
+    const entries = getHistoryStorage();
+    clearElement(historyList);
+    if (entries.length === 0) {
+      historyEmpty.hidden = false;
+      historyEmpty.textContent = "No recent analyses";
+      historyClear.hidden = true;
+      historySection.hidden = true;
+      return;
+    }
+    historyEmpty.hidden = true;
+    historyClear.hidden = false;
+    historySection.hidden = false;
+    for (const entry of entries) {
+      const item = document.createElement("div");
+      item.className = "history-item";
+
+      const title = document.createElement("div");
+      title.className = "hi-title";
+      const exerciseLabel = document.createElement("span");
+      exerciseLabel.textContent = entry.exercise || exerciseSelectValue();
+      title.appendChild(exerciseLabel);
+      const repsLabel = document.createElement("span");
+      repsLabel.textContent = `| ${formatCount(entry.summary && entry.summary.reps)} reps`;
+      title.appendChild(repsLabel);
+      const sourceEl = document.createElement("span");
+      sourceEl.className = "hi-source";
+      sourceEl.textContent = formatHistorySource(entry.source);
+      title.appendChild(sourceEl);
+
+      const meta = document.createElement("div");
+      meta.className = "hi-meta";
+      const summary = entry.summary || {};
+      const speedLine = document.createElement("span");
+      const speedUnit = summary.unit || "";
+      speedLine.textContent = `Peak ${formatHistorySpeed(summary.peak)} ${speedUnit} | Avg ${formatHistorySpeed(summary.avg)} ${speedUnit}`.trim();
+      const timeLine = document.createElement("span");
+      timeLine.textContent = formatTimestamp(entry.created_at);
+      meta.append(speedLine, timeLine);
+
+      const actions = document.createElement("div");
+      actions.className = "hi-actions";
+
+      const restoreBtn = document.createElement("button");
+      restoreBtn.type = "button";
+      restoreBtn.className = "hi-button restore";
+      restoreBtn.textContent = "Restore";
+      restoreBtn.addEventListener("click", () => restoreHistoryEntry(entry.id));
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "hi-button delete";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", () => deleteHistoryEntry(entry.id));
+
+      actions.append(restoreBtn, deleteBtn);
+      item.append(title, meta, actions);
+      historyList.appendChild(item);
+    }
+  }
+
+  function exerciseSelectValue() {
+    const select = document.getElementById("exercise");
+    if (select && select.options && select.selectedIndex >= 0) {
+      return select.options[select.selectedIndex].text || "Exercise";
+    }
+    return "Exercise";
+  }
+
+  historyClear.addEventListener("click", clearHistory);
+
+  // Render any existing history entries on load.
+  renderHistory();
 
   function renderAnalysis(payload) {
     const summary = payload.summary || {};

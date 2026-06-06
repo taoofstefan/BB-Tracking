@@ -122,4 +122,4 @@ With `--json-output`, it also writes:
 - per-rep start/end frames, duration, ROM, peak speed, and mean speed
 - per-rep velocity loss percentage against rep 1
 
-Velocity is still pixel-based. Calibration to meters per second is planned in a later phase.
+Velocity is pixel-based unless calibration is provided. With calibration, summary, frame, and rep metrics also include meters per second.

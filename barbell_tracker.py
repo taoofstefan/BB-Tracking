@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
+from analysis_io import write_analysis_json
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
+from overlay import apply_trail, draw_tracking_overlay
 from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
+from tracking import create_tracker, select_roi, update_tracker
+from video_io import get_fps, get_frame_size, open_capture, open_writer
 
 
 @dataclass(frozen=True)
@@ -51,29 +54,6 @@ def parse_roi(value: str) -> tuple[int, int, int, int]:
     return x, y, w, h
 
 
-def create_tracker(name: str):
-    import cv2
-
-    normalized = name.lower()
-    factories = {
-        "mosse": ("TrackerMOSSE_create", "TrackerMOSSE_create"),
-        "kcf": ("TrackerKCF_create", "TrackerKCF_create"),
-        "csrt": ("TrackerCSRT_create", "TrackerCSRT_create"),
-    }
-    if normalized not in factories:
-        raise ValueError(f"Unsupported tracker: {name}")
-
-    legacy_name, direct_name = factories[normalized]
-    legacy = getattr(cv2, "legacy", None)
-    if legacy is not None and hasattr(legacy, legacy_name):
-        return getattr(legacy, legacy_name)()
-    if hasattr(cv2, direct_name):
-        return getattr(cv2, direct_name)()
-    raise RuntimeError(
-        f"OpenCV tracker '{normalized}' is unavailable. Install opencv-contrib-python."
-    )
-
-
 def track_video(
     input_file: str | Path,
     output_file: str | Path = "output.avi",
@@ -90,34 +70,22 @@ def track_video(
     import cv2
     import numpy as np
 
-    input_path = Path(input_file)
     output_path = Path(output_file)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input video not found: {input_path}")
     if roi is None and not display:
         raise ValueError("--roi is required when --no-display is used")
 
-    cap = cv2.VideoCapture(str(input_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"Could not open input video: {input_path}")
+    cap = open_capture(input_file)
 
     try:
-        fps = cap.get(cv2.CAP_PROP_FPS) or 0
-        if fps <= 0:
-            raise RuntimeError("Input video FPS is missing or invalid")
+        fps = get_fps(cap)
 
         ret, frame = cap.read()
         if not ret or frame is None:
             raise RuntimeError("Input video has no readable frames")
 
-        frame_size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        out = cv2.VideoWriter(str(output_path), fourcc, fps, frame_size)
-        if not out.isOpened():
-            raise RuntimeError(f"Could not open output video for writing: {output_path}")
+        out = open_writer(output_path, fps, get_frame_size(cap))
 
-        selected_roi = roi if roi is not None else tuple(int(value) for value in cv2.selectROI("Select barbell", frame, False))
+        selected_roi = roi if roi is not None else select_roi(frame)
         if selected_roi[2] <= 0 or selected_roi[3] <= 0:
             raise RuntimeError("No valid ROI selected")
 
@@ -136,18 +104,14 @@ def track_video(
                 break
 
             frames_processed += 1
-            ok, bbox = tracker.update(frame)
-            if ok:
-                x, y, w, h = (int(value) for value in bbox)
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cx = x + w // 2
-                cy = y + h // 2
-                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-                positions.append((cx, cy))
+            update = update_tracker(tracker, frame)
+            if update is not None:
+                x, y, w, h = update.bbox
+                previous_center = positions[-1] if positions else None
+                positions.append(update.center)
 
-                if len(positions) > 1:
-                    cv2.line(overlay, positions[-1], positions[-2], (0, 0, 255), 2)
-                    current_speed = speed_px_s(positions[-2], positions[-1], fps)
+                if previous_center is not None:
+                    current_speed = speed_px_s(previous_center, update.center, fps)
                     speeds.append(current_speed)
                 else:
                     current_speed = None
@@ -164,14 +128,22 @@ def track_video(
                         y=y,
                         w=w,
                         h=h,
-                        center_x=cx,
-                        center_y=cy,
+                        center_x=update.center[0],
+                        center_y=update.center[1],
                         speed_px_s=current_speed,
                         speed_m_s=current_speed_m_s,
                     )
                 )
+                frame = draw_tracking_overlay(
+                    frame,
+                    overlay,
+                    update.bbox,
+                    update.center,
+                    previous_center,
+                )
+            else:
+                frame = apply_trail(frame, overlay)
 
-            frame = cv2.addWeighted(frame, 1, overlay, 0.5, 0)
             out.write(frame)
             if display:
                 cv2.imshow("BB-Tracking", frame)
@@ -240,22 +212,6 @@ def print_summary(summary: TrackingSummary) -> None:
         print(f"Max speed: {summary.max_speed_m_s:.3f} meters per second")
         print(f"Min speed: {summary.min_speed_m_s:.3f} meters per second")
         print(f"Avg speed: {summary.avg_speed_m_s:.3f} meters per second")
-
-
-def write_analysis_json(
-    output_file: str | Path,
-    summary: TrackingSummary,
-    telemetry: list[TrackingFrame],
-    reps: list,
-) -> None:
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "summary": asdict(summary),
-        "frames": [asdict(frame) for frame in telemetry],
-        "reps": [asdict(rep) for rep in reps],
-    }
-    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -15,7 +15,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 
 ## Phase 2: Analysis Pipeline
 
-- [ ] Split tracking, video IO, metrics, and overlay drawing into focused modules.
+- [x] Split tracking, video IO, metrics, and overlay drawing into focused modules.
 - [x] Extract velocity calculations into a metrics module.
 - [x] Add unit tests for velocity calculations.
 - [x] Export per-frame telemetry as JSON.

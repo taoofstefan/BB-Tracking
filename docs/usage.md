@@ -28,6 +28,19 @@ python main.py --input lift.mp4 --output output.avi --roi 300,120,80,40 --no-dis
 
 `--roi` uses `x,y,w,h` pixel coordinates. It is required when `--no-display` is used because manual ROI selection needs a GUI window.
 
+## Write Analysis JSON
+
+```bash
+python main.py \
+  --input lift.mp4 \
+  --output output.avi \
+  --roi 300,120,80,40 \
+  --no-display \
+  --json-output analysis.json
+```
+
+The JSON file contains a summary block and one telemetry record per tracked frame.
+
 ## Tracker Options
 
 ```bash
@@ -48,5 +61,13 @@ The CLI prints:
 - max speed in pixels per second
 - min speed in pixels per second
 - average speed in pixels per second
+
+With `--json-output`, it also writes:
+
+- frame number
+- timestamp in seconds
+- bounding box
+- center point
+- speed in pixels per second for that frame
 
 Velocity is still pixel-based. Calibration to meters per second is planned in a later phase.

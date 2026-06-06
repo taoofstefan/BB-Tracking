@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from metrics import speed_px_s, summarize_speeds
+
 
 @dataclass(frozen=True)
 class TrackingSummary:
@@ -14,6 +16,19 @@ class TrackingSummary:
     max_speed_px_s: float | None
     min_speed_px_s: float | None
     avg_speed_px_s: float | None
+
+
+@dataclass(frozen=True)
+class TrackingFrame:
+    frame: int
+    time_s: float
+    x: int
+    y: int
+    w: int
+    h: int
+    center_x: int
+    center_y: int
+    speed_px_s: float | None
 
 
 def parse_roi(value: str) -> tuple[int, int, int, int]:
@@ -59,6 +74,7 @@ def track_video(
     tracker_name: str = "mosse",
     roi: tuple[int, int, int, int] | None = None,
     display: bool = True,
+    json_output: str | Path | None = None,
 ) -> TrackingSummary:
     import cv2
     import numpy as np
@@ -99,6 +115,7 @@ def track_video(
 
         positions: list[tuple[int, int]] = []
         speeds: list[float] = []
+        telemetry: list[TrackingFrame] = []
         overlay = np.zeros_like(frame)
         frames_processed = 0
 
@@ -119,7 +136,23 @@ def track_video(
 
                 if len(positions) > 1:
                     cv2.line(overlay, positions[-1], positions[-2], (0, 0, 255), 2)
-                    speeds.append(speed_px_s(positions[-2], positions[-1], fps))
+                    current_speed = speed_px_s(positions[-2], positions[-1], fps)
+                    speeds.append(current_speed)
+                else:
+                    current_speed = None
+                telemetry.append(
+                    TrackingFrame(
+                        frame=frames_processed,
+                        time_s=frames_processed / fps,
+                        x=x,
+                        y=y,
+                        w=w,
+                        h=h,
+                        center_x=cx,
+                        center_y=cy,
+                        speed_px_s=current_speed,
+                    )
+                )
 
             frame = cv2.addWeighted(frame, 1, overlay, 0.5, 0)
             out.write(frame)
@@ -129,7 +162,7 @@ def track_video(
                     break
 
         max_speed, min_speed, avg_speed = summarize_speeds(speeds)
-        return TrackingSummary(
+        summary = TrackingSummary(
             output_file=str(output_path),
             frames_processed=frames_processed,
             points_tracked=len(positions),
@@ -137,6 +170,9 @@ def track_video(
             min_speed_px_s=min_speed,
             avg_speed_px_s=avg_speed,
         )
+        if json_output:
+            write_analysis_json(json_output, summary, telemetry)
+        return summary
     finally:
         cap.release()
         if "out" in locals():
@@ -156,6 +192,20 @@ def print_summary(summary: TrackingSummary) -> None:
     print(f"Avg speed: {summary.avg_speed_px_s:.2f} pixels per second")
 
 
+def write_analysis_json(
+    output_file: str | Path,
+    summary: TrackingSummary,
+    telemetry: list[TrackingFrame],
+) -> None:
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "summary": asdict(summary),
+        "frames": [asdict(frame) for frame in telemetry],
+    }
+    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Track a barbell/object in a lift video.")
     parser.add_argument("-i", "--input", default="lift.mp4", help="Input video path")
@@ -168,6 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--roi", type=parse_roi, help="Headless ROI as x,y,w,h")
     parser.add_argument("--no-display", action="store_true", help="Disable preview windows")
+    parser.add_argument("--json-output", help="Write summary and per-frame telemetry to JSON")
     return parser
 
 
@@ -179,6 +230,7 @@ def main() -> int:
         tracker_name=args.tracker,
         roi=args.roi,
         display=not args.no_display,
+        json_output=args.json_output,
     )
     print_summary(summary)
     return 0

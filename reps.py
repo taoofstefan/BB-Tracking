@@ -34,6 +34,8 @@ def detect_rep_ranges(
     direction: str = "up",
     min_rom_px: int = 20,
     min_frames: int = 3,
+    smoothing_window: int = 1,
+    deadband_px: float = 0,
 ) -> list[RepRange]:
     if direction not in {"up", "down"}:
         raise ValueError("direction must be 'up' or 'down'")
@@ -41,15 +43,22 @@ def detect_rep_ranges(
         raise ValueError("min_rom_px must be positive")
     if min_frames <= 0:
         raise ValueError("min_frames must be positive")
+    if smoothing_window <= 0:
+        raise ValueError("smoothing_window must be positive")
+    if deadband_px < 0:
+        raise ValueError("deadband_px must be zero or positive")
     if len(y_values) < 2:
         return []
 
+    detection_values = smooth_values(y_values, smoothing_window)
     ranges: list[RepRange] = []
     start_index: int | None = None
     best_index: int | None = None
 
-    for index in range(1, len(y_values)):
-        delta = y_values[index] - y_values[index - 1]
+    for index in range(1, len(detection_values)):
+        delta = detection_values[index] - detection_values[index - 1]
+        if abs(delta) <= deadband_px:
+            continue
         is_target_direction = delta < 0 if direction == "up" else delta > 0
         is_reverse_direction = delta > 0 if direction == "up" else delta < 0
 
@@ -60,9 +69,9 @@ def detect_rep_ranges(
             continue
 
         assert best_index is not None
-        if direction == "up" and y_values[index] < y_values[best_index]:
+        if direction == "up" and detection_values[index] < detection_values[best_index]:
             best_index = index
-        elif direction == "down" and y_values[index] > y_values[best_index]:
+        elif direction == "down" and detection_values[index] > detection_values[best_index]:
             best_index = index
 
         if is_reverse_direction:
@@ -74,6 +83,21 @@ def detect_rep_ranges(
         maybe_add_rep_range(ranges, y_values, start_index, best_index, min_rom_px, min_frames)
 
     return ranges
+
+
+def smooth_values(values: Sequence[int], window: int) -> list[float]:
+    if window <= 0:
+        raise ValueError("window must be positive")
+    if window == 1:
+        return [float(value) for value in values]
+
+    radius = window // 2
+    smoothed: list[float] = []
+    for index in range(len(values)):
+        start = max(index - radius, 0)
+        end = min(index + radius + 1, len(values))
+        smoothed.append(mean(values[start:end]))
+    return smoothed
 
 
 def maybe_add_rep_range(

@@ -67,6 +67,8 @@ def track_video(
     rep_direction: str = "up",
     min_rep_rom_px: int = 20,
     min_rep_frames: int = 3,
+    rep_smoothing_window: int = 1,
+    rep_deadband_px: float = 0,
     show_hud: bool = True,
     report_output: str | Path | None = None,
 ) -> TrackingSummary:
@@ -192,6 +194,8 @@ def track_video(
             direction=rep_direction,
             min_rom_px=min_rep_rom_px,
             min_frames=min_rep_frames,
+            smoothing_window=rep_smoothing_window,
+            deadband_px=rep_deadband_px,
         )
         rep_summaries = with_velocity_loss([
             summarize_rep_speeds(
@@ -288,6 +292,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rep-direction", choices=("up", "down"), default="up", help="Concentric bar direction to segment")
     parser.add_argument("--min-rep-rom-px", type=int, default=20, help="Minimum vertical ROM in pixels for a rep")
     parser.add_argument("--min-rep-frames", type=int, default=3, help="Minimum tracked frames for a rep")
+    parser.add_argument("--rep-smoothing-window", type=int, default=1, help="Centered moving-average window for rep detection")
+    parser.add_argument("--rep-deadband-px", type=float, default=0, help="Ignore smaller vertical deltas during rep detection")
     parser.add_argument("--no-hud", action="store_true", help="Hide live metric text on the annotated video")
     parser.add_argument("--report-output", help="Write a standalone HTML analysis report")
     return parser
@@ -313,6 +319,8 @@ def main() -> int:
         rep_direction=args.rep_direction,
         min_rep_rom_px=args.min_rep_rom_px,
         min_rep_frames=args.min_rep_frames,
+        rep_smoothing_window=args.rep_smoothing_window,
+        rep_deadband_px=args.rep_deadband_px,
         show_hud=not args.no_hud,
         report_output=args.report_output,
     )

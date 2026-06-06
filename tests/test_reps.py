@@ -1,6 +1,6 @@
 import pytest
 
-from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
+from reps import detect_rep_ranges, smooth_values, summarize_rep_speeds, with_velocity_loss
 
 
 def test_detect_rep_ranges_finds_upward_phases():
@@ -37,6 +37,36 @@ def test_detect_rep_ranges_filters_short_movements():
     assert detect_rep_ranges(y_values, direction="up", min_rom_px=20, min_frames=3) == []
 
 
+def test_detect_rep_ranges_deadband_ignores_small_jitter_reversals():
+    y_values = [200, 170, 172, 140, 210]
+
+    jittery_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=20,
+        min_frames=2,
+    )
+    filtered_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=20,
+        min_frames=2,
+        deadband_px=3,
+    )
+
+    assert [(rep.start_index, rep.end_index) for rep in jittery_ranges] == [(0, 1), (2, 3)]
+    assert [(rep.start_index, rep.end_index, rep.rom_px) for rep in filtered_ranges] == [(0, 3, 60)]
+
+
+def test_smooth_values_uses_centered_window():
+    assert smooth_values([10, 20, 40, 80], 3) == [
+        pytest.approx(15),
+        pytest.approx(70 / 3),
+        pytest.approx(140 / 3),
+        pytest.approx(60),
+    ]
+
+
 def test_detect_rep_ranges_rejects_invalid_inputs():
     with pytest.raises(ValueError, match="direction"):
         detect_rep_ranges([1, 2], direction="sideways")
@@ -44,6 +74,12 @@ def test_detect_rep_ranges_rejects_invalid_inputs():
         detect_rep_ranges([1, 2], min_rom_px=0)
     with pytest.raises(ValueError, match="min_frames"):
         detect_rep_ranges([1, 2], min_frames=0)
+    with pytest.raises(ValueError, match="smoothing_window"):
+        detect_rep_ranges([1, 2], smoothing_window=0)
+    with pytest.raises(ValueError, match="deadband_px"):
+        detect_rep_ranges([1, 2], deadband_px=-1)
+    with pytest.raises(ValueError, match="window"):
+        smooth_values([1, 2], 0)
 
 
 def test_summarize_rep_speeds_builds_rep_summary():

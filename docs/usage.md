@@ -96,10 +96,14 @@ python main.py \
   --json-output analysis.json \
   --rep-direction up \
   --min-rep-rom-px 20 \
-  --min-rep-frames 3
+  --min-rep-frames 3 \
+  --rep-smoothing-window 1 \
+  --rep-deadband-px 0
 ```
 
 Use `--rep-direction up` for lifts where the relevant concentric phase moves upward in the video frame. Use `--rep-direction down` for experiments where the tracked target moves downward. This is still a heuristic; bad tracking, camera angle, or occlusion can create bad rep boundaries.
+
+Increase `--rep-deadband-px` to ignore small vertical jitter before direction changes are counted. Increase `--rep-smoothing-window` to apply a centered moving average to the bar path before rep detection. The defaults preserve the raw detector behavior.
 
 `velocity_loss_pct` is calculated against the first detected rep's mean pixel velocity. A positive value means the rep was slower than rep 1; a negative value means it was faster.
 

@@ -68,6 +68,24 @@ python main.py \
 
 For a standard Olympic barbell, `--reference-m 2.2` is a useful first approximation if the full bar length is visible and marked in pixels.
 
+## Rep Segmentation
+
+The CLI includes a conservative vertical-path heuristic for rep segmentation. It looks for movement phases in one direction and filters out phases that are too short or too small.
+
+```bash
+python main.py \
+  --input lift.mp4 \
+  --output output.avi \
+  --roi 300,120,80,40 \
+  --no-display \
+  --json-output analysis.json \
+  --rep-direction up \
+  --min-rep-rom-px 20 \
+  --min-rep-frames 3
+```
+
+Use `--rep-direction up` for lifts where the relevant concentric phase moves upward in the video frame. Use `--rep-direction down` for experiments where the tracked target moves downward. This is still a heuristic; bad tracking, camera angle, or occlusion can create bad rep boundaries.
+
 ## Tracker Options
 
 ```bash
@@ -89,6 +107,7 @@ The CLI prints:
 - min speed in pixels per second
 - average speed in pixels per second
 - calibrated speed in meters per second when calibration is provided
+- detected rep count
 
 With `--json-output`, it also writes:
 
@@ -98,5 +117,6 @@ With `--json-output`, it also writes:
 - center point
 - speed in pixels per second for that frame
 - speed in meters per second for that frame when calibration is provided
+- per-rep start/end frames, duration, ROM, peak speed, and mean speed
 
 Velocity is still pixel-based. Calibration to meters per second is planned in a later phase.

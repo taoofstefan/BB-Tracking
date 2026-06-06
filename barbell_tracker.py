@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
+from reps import detect_rep_ranges, summarize_rep_speeds
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class TrackingSummary:
     max_speed_m_s: float | None
     min_speed_m_s: float | None
     avg_speed_m_s: float | None
+    rep_count: int
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,9 @@ def track_video(
     display: bool = True,
     json_output: str | Path | None = None,
     scale_px_per_meter: float | None = None,
+    rep_direction: str = "up",
+    min_rep_rom_px: int = 20,
+    min_rep_frames: int = 3,
 ) -> TrackingSummary:
     import cv2
     import numpy as np
@@ -180,6 +185,23 @@ def track_video(
             else []
         )
         max_speed_m_s, min_speed_m_s, avg_speed_m_s = summarize_speeds(calibrated_speeds)
+        rep_ranges = detect_rep_ranges(
+            [frame.center_y for frame in telemetry],
+            direction=rep_direction,
+            min_rom_px=min_rep_rom_px,
+            min_frames=min_rep_frames,
+        )
+        rep_summaries = [
+            summarize_rep_speeds(
+                index,
+                rep_range,
+                frames=[frame.frame for frame in telemetry],
+                times=[frame.time_s for frame in telemetry],
+                speeds_px_s=[frame.speed_px_s for frame in telemetry],
+                speeds_m_s=[frame.speed_m_s for frame in telemetry],
+            )
+            for index, rep_range in enumerate(rep_ranges, start=1)
+        ]
         summary = TrackingSummary(
             output_file=str(output_path),
             frames_processed=frames_processed,
@@ -191,9 +213,10 @@ def track_video(
             max_speed_m_s=max_speed_m_s,
             min_speed_m_s=min_speed_m_s,
             avg_speed_m_s=avg_speed_m_s,
+            rep_count=len(rep_summaries),
         )
         if json_output:
-            write_analysis_json(json_output, summary, telemetry)
+            write_analysis_json(json_output, summary, telemetry, rep_summaries)
         return summary
     finally:
         cap.release()
@@ -206,6 +229,7 @@ def print_summary(summary: TrackingSummary) -> None:
     print(f"Output video: {summary.output_file}")
     print(f"Frames processed: {summary.frames_processed}")
     print(f"Points tracked: {summary.points_tracked}")
+    print(f"Reps detected: {summary.rep_count}")
     if summary.avg_speed_px_s is None:
         print("No speed data available")
         return
@@ -222,12 +246,14 @@ def write_analysis_json(
     output_file: str | Path,
     summary: TrackingSummary,
     telemetry: list[TrackingFrame],
+    reps: list,
 ) -> None:
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "summary": asdict(summary),
         "frames": [asdict(frame) for frame in telemetry],
+        "reps": [asdict(rep) for rep in reps],
     }
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -248,6 +274,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scale-px-per-meter", type=float, help="Calibration scale in pixels per meter")
     parser.add_argument("--reference-px", type=float, help="Reference length in pixels for calibration")
     parser.add_argument("--reference-m", type=float, help="Reference length in meters for calibration")
+    parser.add_argument("--rep-direction", choices=("up", "down"), default="up", help="Concentric bar direction to segment")
+    parser.add_argument("--min-rep-rom-px", type=int, default=20, help="Minimum vertical ROM in pixels for a rep")
+    parser.add_argument("--min-rep-frames", type=int, default=3, help="Minimum tracked frames for a rep")
     return parser
 
 
@@ -268,6 +297,9 @@ def main() -> int:
         display=not args.no_display,
         json_output=args.json_output,
         scale_px_per_meter=scale_px_per_meter,
+        rep_direction=args.rep_direction,
+        min_rep_rom_px=args.min_rep_rom_px,
+        min_rep_frames=args.min_rep_frames,
     )
     print_summary(summary)
     return 0

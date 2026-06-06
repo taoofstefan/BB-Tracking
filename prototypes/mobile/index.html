@@ -211,6 +211,41 @@
       font-weight: 700;
     }
 
+    .charts {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .chart-panel {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      min-height: 150px;
+    }
+
+    .chart-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .chart {
+      min-height: 110px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .chart svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
     .rep-list {
       padding: 0 16px 16px;
       display: grid;
@@ -298,6 +333,17 @@
     <div class="metric"><div class="name">Slowdown</div><div class="value" id="slowdown">--</div></div>
   </section>
 
+  <section class="charts">
+    <div class="chart-panel">
+      <div class="chart-title">Velocity</div>
+      <div class="chart" id="velocityChart">Load analysis JSON</div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Bar Path</div>
+      <div class="chart" id="pathChart">Load analysis JSON</div>
+    </div>
+  </section>
+
   <section class="rep-list" id="repList"></section>
 </main>
 
@@ -315,6 +361,8 @@
   const repList = document.getElementById("repList");
   const fileName = document.getElementById("fileName");
   const analysisName = document.getElementById("analysisName");
+  const velocityChart = document.getElementById("velocityChart");
+  const pathChart = document.getElementById("pathChart");
 
   let videoUrl = null;
 
@@ -365,6 +413,12 @@
         max_speed_m_s: 0.82,
         avg_speed_m_s: 0.54
       },
+      frames: [0, 1, 2, 3, 4, 5, 6].map((step) => ({
+        time_s: step * 0.2,
+        speed_m_s: [0.1, 0.45, 0.62, 0.58, 0.38, 0.25, 0.2][step],
+        center_x: [110, 112, 113, 116, 118, 119, 121][step],
+        center_y: [230, 210, 185, 160, 150, 170, 205][step]
+      })),
       reps: [0, 4, 9, 13, 18].map((loss, index) => ({
         index: index + 1,
         mean_speed_m_s: 0.62 - index * 0.05,
@@ -378,15 +432,21 @@
     marker.style.display = "none";
     path.style.display = "none";
     clearRepList();
+    clearCharts("Load analysis JSON");
     for (const id of ["reps", "peak", "average", "slowdown"]) {
       document.getElementById(id).textContent = "--";
     }
     status.textContent = video.hidden ? "Prototype" : "Video loaded";
   });
 
+  if (new URLSearchParams(window.location.search).get("demo") === "1") {
+    analyzeButton.click();
+  }
+
   function renderAnalysis(payload) {
     const summary = payload.summary || {};
     const reps = Array.isArray(payload.reps) ? payload.reps : [];
+    const frames = Array.isArray(payload.frames) ? payload.frames : [];
     const velocityLoss = reps
       .map((rep) => Number(rep.velocity_loss_pct))
       .filter((value) => Number.isFinite(value));
@@ -397,6 +457,7 @@
     document.getElementById("average").textContent = formatSpeed(summary.avg_speed_m_s, summary.avg_speed_px_s);
     document.getElementById("slowdown").textContent = formatPercent(maxLoss);
     renderReps(reps);
+    renderCharts(frames);
   }
 
   function renderReps(reps) {
@@ -430,6 +491,71 @@
   function clearRepList() {
     while (repList.firstChild) {
       repList.removeChild(repList.firstChild);
+    }
+  }
+
+  function renderCharts(frames) {
+    const velocityPoints = frames
+      .map((frame) => [Number(frame.time_s), Number(frame.speed_m_s ?? frame.speed_px_s)])
+      .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+    const pathPoints = frames
+      .map((frame) => [Number(frame.center_x), Number(frame.center_y)])
+      .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+
+    renderLineChart(velocityChart, velocityPoints, "No velocity data", "var(--blue)", true);
+    renderLineChart(pathChart, pathPoints, "No bar path data", "var(--red)", false);
+  }
+
+  function renderLineChart(container, points, emptyLabel, stroke, invertY) {
+    clearElement(container);
+    if (points.length < 2) {
+      container.textContent = emptyLabel;
+      return;
+    }
+
+    const width = 320;
+    const height = 120;
+    const padding = 10;
+    const xs = points.map(([x]) => x);
+    const ys = points.map(([, y]) => y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const xRange = Math.max(maxX - minX, 1);
+    const yRange = Math.max(maxY - minY, 1);
+    const scaledPoints = points.map(([x, y]) => {
+      const scaledX = padding + ((x - minX) / xRange) * (width - padding * 2);
+      let yPosition = (y - minY) / yRange;
+      if (invertY) yPosition = 1 - yPosition;
+      const scaledY = padding + yPosition * (height - padding * 2);
+      return `${scaledX.toFixed(1)},${scaledY.toFixed(1)}`;
+    });
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("role", "img");
+    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    polyline.setAttribute("points", scaledPoints.join(" "));
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute("stroke", stroke);
+    polyline.setAttribute("stroke-width", "3");
+    polyline.setAttribute("stroke-linecap", "round");
+    polyline.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(polyline);
+    container.appendChild(svg);
+  }
+
+  function clearCharts(label) {
+    for (const chart of [velocityChart, pathChart]) {
+      clearElement(chart);
+      chart.textContent = label;
+    }
+  }
+
+  function clearElement(element) {
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
     }
   }
 

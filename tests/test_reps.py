@@ -1,6 +1,6 @@
 import pytest
 
-from reps import detect_rep_ranges, smooth_values, summarize_rep_speeds, with_velocity_loss
+from reps import RepRange, detect_rep_ranges, smooth_values, summarize_rep_speeds, with_velocity_loss
 
 
 def test_detect_rep_ranges_finds_upward_phases():
@@ -80,6 +80,149 @@ def test_detect_rep_ranges_rejects_invalid_inputs():
         detect_rep_ranges([1, 2], deadband_px=-1)
     with pytest.raises(ValueError, match="window"):
         smooth_values([1, 2], 0)
+
+
+def test_detect_rep_ranges_default_mode_is_direction():
+    y_values = [200, 170, 140, 210, 180, 150]
+
+    default_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+    )
+    explicit_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        mode="direction",
+    )
+
+    assert default_ranges == explicit_ranges
+
+
+def test_detect_rep_ranges_phase_keeps_one_rep_for_jittery_sequence():
+    # One full upward rep with a tiny reversal (2px) mid-flight.
+    y_values = [200, 180, 160, 162, 140, 120]
+
+    direction_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        mode="direction",
+    )
+    phase_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        mode="phase",
+    )
+
+    # Direction mode splits at the 2px reversal; phase mode absorbs it.
+    assert [(rep.start_index, rep.end_index) for rep in direction_ranges] == [(0, 2), (3, 5)]
+    assert [(rep.start_index, rep.end_index, rep.rom_px) for rep in phase_ranges] == [(0, 5, 80)]
+
+
+def test_detect_rep_ranges_phase_detects_two_real_reps():
+    # Two clean upward reps; the second has a 2px jitter that phase mode absorbs.
+    y_values = [200, 170, 140, 200, 170, 172, 140]
+
+    phase_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        mode="phase",
+    )
+
+    assert [(rep.start_index, rep.end_index, rep.rom_px) for rep in phase_ranges] == [
+        (0, 2, 60),
+        (3, 6, 60),
+    ]
+
+
+def test_detect_rep_ranges_phase_enforces_min_rom_and_min_frames():
+    # Sub-ROM phase should be discarded, even though frames and phase are valid.
+    small = [200, 195, 190, 200, 195, 190]
+    assert detect_rep_ranges(
+        small,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        mode="phase",
+    ) == []
+
+    # Single-frame phase should be discarded.
+    short = [200, 195, 200, 200, 200]
+    assert detect_rep_ranges(
+        short,
+        direction="up",
+        min_rom_px=5,
+        min_frames=3,
+        mode="phase",
+    ) == []
+
+
+def test_detect_rep_ranges_phase_ignores_deadband_argument():
+    # Phase mode must not consult deadband_px; a tiny deadband must not break detection.
+    y_values = [200, 180, 160, 140]
+    assert detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        deadband_px=0,
+        mode="phase",
+    ) == [RepRange(start_index=0, end_index=3, rom_px=60)]
+
+
+def test_detect_rep_ranges_rejects_invalid_mode():
+    with pytest.raises(ValueError, match="mode"):
+        detect_rep_ranges([200, 150], mode="unknown")
+
+
+def test_detect_rep_ranges_rejects_negative_phase_jitter():
+    with pytest.raises(ValueError, match="phase_jitter_px"):
+        detect_rep_ranges([200, 150], mode="phase", phase_jitter_px=-1)
+
+
+def test_detect_rep_ranges_phase_supports_smoothing_window():
+    # Smoothing across the jitter should still produce one rep in phase mode.
+    y_values = [200, 180, 160, 162, 140, 120]
+
+    phase_ranges = detect_rep_ranges(
+        y_values,
+        direction="up",
+        min_rom_px=30,
+        min_frames=2,
+        smoothing_window=3,
+        mode="phase",
+    )
+
+    assert len(phase_ranges) == 1
+    assert phase_ranges[0].start_index == 0
+    assert phase_ranges[0].end_index == 5
+
+
+def test_detect_rep_ranges_phase_downward_direction():
+    # Two downward-direction (y increasing) reps; second has a small 2px reversal.
+    y_values = [100, 130, 160, 100, 130, 132, 160]
+
+    phase_ranges = detect_rep_ranges(
+        y_values,
+        direction="down",
+        min_rom_px=30,
+        min_frames=2,
+        mode="phase",
+    )
+
+    assert [(rep.start_index, rep.end_index, rep.rom_px) for rep in phase_ranges] == [
+        (0, 2, 60),
+        (3, 6, 60),
+    ]
 
 
 def test_summarize_rep_speeds_builds_rep_summary():

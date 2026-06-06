@@ -100,12 +100,28 @@ python main.py \
   --min-rep-rom-px 20 \
   --min-rep-frames 3 \
   --rep-smoothing-window 1 \
-  --rep-deadband-px 0
+  --rep-deadband-px 0 \
+  --rep-detector direction
 ```
 
 Use `--rep-direction up` for lifts where the relevant concentric phase moves upward in the video frame. Use `--rep-direction down` for experiments where the tracked target moves downward. This is still a heuristic; bad tracking, camera angle, or occlusion can create bad rep boundaries.
 
 Increase `--rep-deadband-px` to ignore small vertical jitter before direction changes are counted. Increase `--rep-smoothing-window` to apply a centered moving average to the bar path before rep detection. The defaults preserve the raw detector behavior.
+
+`--rep-detector {direction,phase}` selects the segmentation strategy. `direction` (default) is the original direction-flip heuristic. `phase` smooths the bar path, ignores `--rep-deadband-px`, and absorbs short jitter reversals (regressions at or below the jitter threshold are kept inside the in-progress rep instead of starting a new one). Phase mode still honors `--min-rep-rom-px` and `--min-rep-frames`.
+
+```bash
+python main.py \
+  --input lift.mp4 \
+  --output output.avi \
+  --roi 300,120,80,40 \
+  --no-display \
+  --json-output analysis.json \
+  --rep-detector phase \
+  --rep-phase-jitter-px 10
+```
+
+`--rep-phase-jitter-px` sets the jitter threshold for phase mode. It defaults to half of `--min-rep-rom-px` when omitted. Increase it for noisy video, lower it for clean bar paths.
 
 `velocity_loss_pct` is calculated against the first detected rep's mean pixel velocity. A positive value means the rep was slower than rep 1; a negative value means it was faster.
 

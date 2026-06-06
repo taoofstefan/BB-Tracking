@@ -36,6 +36,8 @@ def detect_rep_ranges(
     min_frames: int = 3,
     smoothing_window: int = 1,
     deadband_px: float = 0,
+    mode: str = "direction",
+    phase_jitter_px: float | None = None,
 ) -> list[RepRange]:
     if direction not in {"up", "down"}:
         raise ValueError("direction must be 'up' or 'down'")
@@ -47,8 +49,22 @@ def detect_rep_ranges(
         raise ValueError("smoothing_window must be positive")
     if deadband_px < 0:
         raise ValueError("deadband_px must be zero or positive")
+    if mode not in {"direction", "phase"}:
+        raise ValueError("mode must be 'direction' or 'phase'")
+    if phase_jitter_px is not None and phase_jitter_px < 0:
+        raise ValueError("phase_jitter_px must be zero or positive")
     if len(y_values) < 2:
         return []
+
+    if mode == "phase":
+        return detect_rep_ranges_phase(
+            y_values,
+            direction=direction,
+            min_rom_px=min_rom_px,
+            min_frames=min_frames,
+            smoothing_window=smoothing_window,
+            phase_jitter_px=phase_jitter_px if phase_jitter_px is not None else min_rom_px / 2,
+        )
 
     detection_values = smooth_values(y_values, smoothing_window)
     ranges: list[RepRange] = []
@@ -78,6 +94,85 @@ def detect_rep_ranges(
             maybe_add_rep_range(ranges, y_values, start_index, best_index, min_rom_px, min_frames)
             start_index = None
             best_index = None
+
+    if start_index is not None and best_index is not None:
+        maybe_add_rep_range(ranges, y_values, start_index, best_index, min_rom_px, min_frames)
+
+    return ranges
+
+
+def detect_rep_ranges_phase(
+    y_values: Sequence[int],
+    *,
+    direction: str,
+    min_rom_px: int,
+    min_frames: int,
+    smoothing_window: int,
+    phase_jitter_px: float,
+) -> list[RepRange]:
+    """Phase-based rep detector.
+
+    Smooths the y-values, then walks the path tracking sustained target-direction
+    movement. Short reversals (regressions smaller than ``phase_jitter_px``) are
+    treated as jitter and absorbed into the in-progress phase instead of
+    starting a new rep. A phase is finalized only when movement reverses by at
+    least the jitter threshold, and the next rep begins at the start of that
+    reversal episode.
+    """
+    if phase_jitter_px < 0:
+        raise ValueError("phase_jitter_px must be zero or positive")
+
+    detection_values = smooth_values(y_values, smoothing_window)
+    ranges: list[RepRange] = []
+    start_index: int | None = None
+    best_index: int | None = None
+    last_extreme_index: int | None = None
+    reverse_start_index: int | None = None
+
+    for index in range(1, len(detection_values)):
+        delta = detection_values[index] - detection_values[index - 1]
+        if delta == 0:
+            continue
+        is_target_direction = delta < 0 if direction == "up" else delta > 0
+
+        if start_index is None:
+            if is_target_direction:
+                start_index = index - 1
+                best_index = index - 1
+                last_extreme_index = index - 1
+                reverse_start_index = None
+            continue
+
+        assert best_index is not None and last_extreme_index is not None
+        if direction == "up" and detection_values[index] < detection_values[best_index]:
+            best_index = index
+            last_extreme_index = index
+        elif direction == "down" and detection_values[index] > detection_values[best_index]:
+            best_index = index
+            last_extreme_index = index
+
+        if is_target_direction:
+            reverse_start_index = None
+            continue
+
+        if reverse_start_index is None:
+            reverse_start_index = index
+
+        regression = abs(detection_values[last_extreme_index] - detection_values[index])
+        if regression <= phase_jitter_px:
+            continue
+
+        maybe_add_rep_range(
+            ranges,
+            y_values,
+            start_index,
+            best_index,
+            min_rom_px,
+            min_frames,
+        )
+        start_index = reverse_start_index
+        best_index = reverse_start_index
+        last_extreme_index = reverse_start_index
 
     if start_index is not None and best_index is not None:
         maybe_add_rep_range(ranges, y_values, start_index, best_index, min_rom_px, min_frames)

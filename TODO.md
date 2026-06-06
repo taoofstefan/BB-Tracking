@@ -18,6 +18,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Split tracking, video IO, metrics, and overlay drawing into focused modules.
 - [x] Extract velocity calculations into a metrics module.
 - [x] Add unit tests for velocity calculations.
+- [x] Add golden regression coverage for sample-video metrics.
 - [x] Export per-frame telemetry as JSON.
 - [x] Export summary metrics as JSON.
 - [x] Generate a standalone HTML analysis report from telemetry.

@@ -160,6 +160,75 @@
       text-transform: uppercase;
     }
 
+    .preset-description {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+      min-height: 16px;
+    }
+
+    .preset-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .preset-options .opt {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .preset-options .opt strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .advanced {
+      margin: 0 16px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f7f9fc;
+    }
+
+    .advanced summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .advanced summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .advanced summary::after {
+      content: "+";
+      font-size: 16px;
+      line-height: 1;
+      color: var(--muted);
+    }
+
+    .advanced[open] summary::after {
+      content: "\2212";
+    }
+
+    .advanced-body {
+      padding: 0 12px 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
     .wide {
       grid-column: 1 / -1;
     }
@@ -175,6 +244,13 @@
       color: var(--muted);
       font-weight: 700;
       text-transform: uppercase;
+    }
+
+    .advanced-body input,
+    .advanced-body select {
+      min-height: 36px;
+      font-size: 14px;
+      padding: 6px 8px;
     }
 
     input,
@@ -537,7 +613,7 @@
       <label class="file-button" for="analysisInput">Load JSON</label>
       <div class="file-name" id="analysisName">No data</div>
     </div>
-    <div class="field">
+    <div class="field wide">
       <label for="exercise">Exercise</label>
       <select id="exercise">
         <option>Squat</option>
@@ -545,7 +621,43 @@
         <option>Deadlift</option>
         <option>Overhead press</option>
       </select>
+      <div class="preset-description" id="presetDescription"></div>
+      <div class="preset-options" id="presetOptions" hidden>
+        <span class="opt"><span>Tracker</span><strong id="presetTracker">--</strong></span>
+        <span class="opt"><span>Min ROM</span><strong id="presetMinRom">--</strong></span>
+        <span class="opt"><span>Min frames</span><strong id="presetMinFrames">--</strong></span>
+        <span class="opt"><span>Smoothing</span><strong id="presetSmoothing">--</strong></span>
+      </div>
+      <button class="secondary picker-button" id="applyPresetButton" type="button">Apply Preset</button>
     </div>
+    <details class="advanced wide" id="repOptionsPanel">
+      <summary>Rep options</summary>
+      <div class="advanced-body">
+        <div class="field">
+          <label for="repDirectionSelect">Rep direction</label>
+          <select id="repDirectionSelect">
+            <option value="up">up</option>
+            <option value="down">down</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="minRepRomInput">Min ROM (px)</label>
+          <input id="minRepRomInput" type="number" min="1" step="1" value="20" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="minRepFramesInput">Min frames</label>
+          <input id="minRepFramesInput" type="number" min="1" step="1" value="3" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="repSmoothingInput">Smoothing</label>
+          <input id="repSmoothingInput" type="number" min="1" step="1" value="1" inputmode="numeric">
+        </div>
+        <div class="field wide">
+          <label for="repDeadbandInput">Deadband (px)</label>
+          <input id="repDeadbandInput" type="number" min="0" step="any" value="0" inputmode="decimal">
+        </div>
+      </div>
+    </details>
     <div class="field wide">
       <label for="serviceUrl">Service</label>
       <div class="service-row">
@@ -642,11 +754,25 @@
   const serviceUrl = document.getElementById("serviceUrl");
   const serviceCheckButton = document.getElementById("serviceCheckButton");
   const serviceStatus = document.getElementById("serviceStatus");
+  const exerciseSelect = document.getElementById("exercise");
   const roiInput = document.getElementById("roiInput");
   const scaleInput = document.getElementById("scaleInput");
   const trackerSelect = document.getElementById("trackerSelect");
   const referencePxInput = document.getElementById("referencePxInput");
   const referenceMInput = document.getElementById("referenceMInput");
+  const repDirectionSelect = document.getElementById("repDirectionSelect");
+  const minRepRomInput = document.getElementById("minRepRomInput");
+  const minRepFramesInput = document.getElementById("minRepFramesInput");
+  const repSmoothingInput = document.getElementById("repSmoothingInput");
+  const repDeadbandInput = document.getElementById("repDeadbandInput");
+  const repOptionsPanel = document.getElementById("repOptionsPanel");
+  const applyPresetButton = document.getElementById("applyPresetButton");
+  const presetDescription = document.getElementById("presetDescription");
+  const presetOptions = document.getElementById("presetOptions");
+  const presetTracker = document.getElementById("presetTracker");
+  const presetMinRom = document.getElementById("presetMinRom");
+  const presetMinFrames = document.getElementById("presetMinFrames");
+  const presetSmoothing = document.getElementById("presetSmoothing");
   const repList = document.getElementById("repList");
   const warningsPanel = document.getElementById("warnings");
   const warningsList = document.getElementById("warningsList");
@@ -661,6 +787,105 @@
 
   const HISTORY_STORAGE_KEY = "bbtracking.history.v1";
   const HISTORY_MAX_ENTRIES = 5;
+
+  // Lift presets keep the analysis knobs sensible for common lifts while
+  // leaving the user free to tweak any field manually. Defaults are tuned for
+  // phone-recorded sets at ~30fps.
+  const LIFT_PRESETS = {
+    "Squat": {
+      hint: "Big vertical bar path, slower reps. KCF, larger ROM gate, smoothing for the bottom pause.",
+      roi: "300,120,80,40",
+      scale: 100,
+      tracker: "kcf",
+      repDirection: "up",
+      minRepRomPx: 40,
+      minRepFrames: 4,
+      smoothing: 3,
+      deadband: 6
+    },
+    "Bench press": {
+      hint: "Shorter arc, faster reps. CSRT, moderate smoothing, deadband ignores chest wobble.",
+      roi: "300,140,80,30",
+      scale: 100,
+      tracker: "csrt",
+      repDirection: "up",
+      minRepRomPx: 30,
+      minRepFrames: 3,
+      smoothing: 3,
+      deadband: 4
+    },
+    "Deadlift": {
+      hint: "Largest ROM, slowest tempo. KCF, large ROM gate, deadband skips lockout bounces.",
+      roi: "280,100,100,60",
+      scale: 110,
+      tracker: "kcf",
+      repDirection: "up",
+      minRepRomPx: 50,
+      minRepFrames: 5,
+      smoothing: 3,
+      deadband: 6
+    },
+    "Overhead press": {
+      hint: "Compact vertical path, quick lockouts. CSRT, small ROM gate, small deadband.",
+      roi: "300,130,80,35",
+      scale: 100,
+      tracker: "csrt",
+      repDirection: "up",
+      minRepRomPx: 25,
+      minRepFrames: 3,
+      smoothing: 1,
+      deadband: 3
+    }
+  };
+
+  function currentExerciseName() {
+    if (!exerciseSelect || exerciseSelect.selectedIndex < 0) return "Exercise";
+    return exerciseSelect.options[exerciseSelect.selectedIndex].text || "Exercise";
+  }
+
+  function getLiftPreset(name) {
+    return LIFT_PRESETS[name] || null;
+  }
+
+  function renderPresetHint() {
+    // On exercise change, only refresh the hint text; never overwrite
+    // any of the manual fields the user has already tuned.
+    const name = currentExerciseName();
+    const preset = getLiftPreset(name);
+    if (!preset) {
+      presetDescription.textContent = "";
+      presetOptions.hidden = true;
+      return;
+    }
+    presetDescription.textContent = preset.hint;
+    presetTracker.textContent = preset.tracker.toUpperCase();
+    presetMinRom.textContent = `${preset.minRepRomPx}px`;
+    presetMinFrames.textContent = String(preset.minRepFrames);
+    presetSmoothing.textContent = String(preset.smoothing);
+    presetOptions.hidden = false;
+  }
+
+  function applyCurrentPreset() {
+    const name = currentExerciseName();
+    const preset = getLiftPreset(name);
+    if (!preset) {
+      status.textContent = "No preset available";
+      return;
+    }
+    roiInput.value = preset.roi;
+    scaleInput.value = String(preset.scale);
+    trackerSelect.value = preset.tracker;
+    repDirectionSelect.value = preset.repDirection;
+    minRepRomInput.value = String(preset.minRepRomPx);
+    minRepFramesInput.value = String(preset.minRepFrames);
+    repSmoothingInput.value = String(preset.smoothing);
+    repDeadbandInput.value = String(preset.deadband);
+    status.textContent = `Preset applied: ${name}`;
+  }
+
+  applyPresetButton.addEventListener("click", applyCurrentPreset);
+  exerciseSelect.addEventListener("change", renderPresetHint);
+  renderPresetHint();
 
   let videoUrl = null;
   let calibrationActive = false;
@@ -971,6 +1196,11 @@
     const referencePx = referencePxInput.value.trim();
     const referenceM = referenceMInput.value.trim();
     const tracker = trackerSelect.value || "mosse";
+    const repDirection = repDirectionSelect.value || "up";
+    const minRepRomPx = minRepRomInput.value.trim() || "20";
+    const minRepFrames = minRepFramesInput.value.trim() || "3";
+    const repSmoothingWindow = repSmoothingInput.value.trim() || "1";
+    const repDeadbandPx = repDeadbandInput.value.trim() || "0";
     const file = videoInput.files[0];
 
     if (!file) {
@@ -1021,11 +1251,46 @@
       status.textContent = "Analysis failed";
       return;
     }
+    if (!isNonNegativeInteger(minRepRomPx) || Number(minRepRomPx) < 1) {
+      serviceStatus.textContent = "Invalid min ROM";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (!isNonNegativeInteger(minRepFrames) || Number(minRepFrames) < 1) {
+      serviceStatus.textContent = "Invalid min frames";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (!isNonNegativeInteger(repSmoothingWindow) || Number(repSmoothingWindow) < 1) {
+      serviceStatus.textContent = "Invalid smoothing";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (!isNonNegativeNumber(repDeadbandPx)) {
+      serviceStatus.textContent = "Invalid deadband";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (repDirection !== "up" && repDirection !== "down") {
+      serviceStatus.textContent = "Invalid rep direction";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
 
     const formData = new FormData();
     formData.append("video", file);
     formData.append("roi", roi);
     formData.append("tracker", tracker);
+    formData.append("rep_direction", repDirection);
+    formData.append("min_rep_rom_px", minRepRomPx);
+    formData.append("min_rep_frames", minRepFrames);
+    formData.append("rep_smoothing_window", repSmoothingWindow);
+    formData.append("rep_deadband_px", repDeadbandPx);
     if (scale) {
       formData.append("scale_px_per_meter", scale);
     }
@@ -1166,6 +1431,16 @@
   function isPositiveNumber(value) {
     const number = Number(value);
     return Number.isFinite(number) && number > 0;
+  }
+
+  function isNonNegativeNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0;
+  }
+
+  function isNonNegativeInteger(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 && Number.isInteger(number);
   }
 
   function isDemoMode() {

@@ -41,6 +41,21 @@ python main.py \
 
 The JSON file contains a summary block and one telemetry record per tracked frame.
 
+## Write An HTML Report
+
+```bash
+python main.py \
+  --input lift.mp4 \
+  --output output.avi \
+  --roi 300,120,80,40 \
+  --no-display \
+  --scale-px-per-meter 100 \
+  --json-output analysis.json \
+  --report-output report.html
+```
+
+The report is a standalone HTML file with summary cards, a velocity chart, a bar path chart, and a per-rep table.
+
 ## Add Calibration
 
 Velocity is pixel-based by default. To also report meters per second, pass either a direct scale:

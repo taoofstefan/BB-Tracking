@@ -20,6 +20,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Add unit tests for velocity calculations.
 - [x] Export per-frame telemetry as JSON.
 - [x] Export summary metrics as JSON.
+- [x] Generate a standalone HTML analysis report from telemetry.
 
 ## Phase 3: Calibration And Reps
 

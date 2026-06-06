@@ -7,6 +7,7 @@ from pathlib import Path
 from analysis_io import write_analysis_json
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
 from overlay import apply_trail, draw_tracking_overlay, format_speed_line
+from report import write_report_html
 from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
 from tracking import create_tracker, select_roi, update_tracker
 from video_io import get_fps, get_frame_size, open_capture, open_writer
@@ -67,6 +68,7 @@ def track_video(
     min_rep_rom_px: int = 20,
     min_rep_frames: int = 3,
     show_hud: bool = True,
+    report_output: str | Path | None = None,
 ) -> TrackingSummary:
     import cv2
     import numpy as np
@@ -217,6 +219,8 @@ def track_video(
         )
         if json_output:
             write_analysis_json(json_output, summary, telemetry, rep_summaries)
+        if report_output:
+            write_report_html(report_output, summary, telemetry, rep_summaries)
         return summary
     finally:
         cap.release()
@@ -285,6 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-rep-rom-px", type=int, default=20, help="Minimum vertical ROM in pixels for a rep")
     parser.add_argument("--min-rep-frames", type=int, default=3, help="Minimum tracked frames for a rep")
     parser.add_argument("--no-hud", action="store_true", help="Hide live metric text on the annotated video")
+    parser.add_argument("--report-output", help="Write a standalone HTML analysis report")
     return parser
 
 
@@ -309,6 +314,7 @@ def main() -> int:
         min_rep_rom_px=args.min_rep_rom_px,
         min_rep_frames=args.min_rep_frames,
         show_hud=not args.no_hud,
+        report_output=args.report_output,
     )
     print_summary(summary)
     return 0

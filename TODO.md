@@ -28,6 +28,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Segment reps from bar path with a vertical-path heuristic.
 - [x] Report per-rep peak velocity and mean velocity.
 - [x] Report per-rep velocity loss.
+- [x] Overlay live frame, speed, peak speed, and tracking counts on output video.
 
 ## Phase 4: Mobile Prototype
 

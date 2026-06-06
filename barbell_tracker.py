@@ -6,7 +6,7 @@ from pathlib import Path
 
 from analysis_io import write_analysis_json
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
-from overlay import apply_trail, draw_tracking_overlay
+from overlay import apply_trail, draw_tracking_overlay, format_speed_line
 from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
 from tracking import create_tracker, select_roi, update_tracker
 from video_io import get_fps, get_frame_size, open_capture, open_writer
@@ -66,6 +66,7 @@ def track_video(
     rep_direction: str = "up",
     min_rep_rom_px: int = 20,
     min_rep_frames: int = 3,
+    show_hud: bool = True,
 ) -> TrackingSummary:
     import cv2
     import numpy as np
@@ -97,6 +98,7 @@ def track_video(
         telemetry: list[TrackingFrame] = []
         overlay = np.zeros_like(frame)
         frames_processed = 0
+        peak_speed_px_s: float | None = None
 
         while True:
             ret, frame = cap.read()
@@ -105,6 +107,8 @@ def track_video(
 
             frames_processed += 1
             update = update_tracker(tracker, frame)
+            current_speed = None
+            current_speed_m_s = None
             if update is not None:
                 x, y, w, h = update.bbox
                 previous_center = positions[-1] if positions else None
@@ -113,6 +117,11 @@ def track_video(
                 if previous_center is not None:
                     current_speed = speed_px_s(previous_center, update.center, fps)
                     speeds.append(current_speed)
+                    peak_speed_px_s = (
+                        current_speed
+                        if peak_speed_px_s is None
+                        else max(peak_speed_px_s, current_speed)
+                    )
                 else:
                     current_speed = None
                 current_speed_m_s = (
@@ -134,15 +143,34 @@ def track_video(
                         speed_m_s=current_speed_m_s,
                     )
                 )
+                hud_lines = build_hud_lines(
+                    frame_number=frames_processed,
+                    time_s=frames_processed / fps,
+                    points_tracked=len(positions),
+                    speed_px_s=current_speed,
+                    speed_m_s_value=current_speed_m_s,
+                    peak_speed_px_s=peak_speed_px_s,
+                    scale_px_per_meter=scale_px_per_meter,
+                ) if show_hud else None
                 frame = draw_tracking_overlay(
                     frame,
                     overlay,
                     update.bbox,
                     update.center,
                     previous_center,
+                    hud_lines,
                 )
             else:
-                frame = apply_trail(frame, overlay)
+                hud_lines = build_hud_lines(
+                    frame_number=frames_processed,
+                    time_s=frames_processed / fps,
+                    points_tracked=len(positions),
+                    speed_px_s=current_speed,
+                    speed_m_s_value=current_speed_m_s,
+                    peak_speed_px_s=peak_speed_px_s,
+                    scale_px_per_meter=scale_px_per_meter,
+                ) if show_hud else None
+                frame = apply_trail(frame, overlay, hud_lines)
 
             out.write(frame)
             if display:
@@ -214,6 +242,29 @@ def print_summary(summary: TrackingSummary) -> None:
         print(f"Avg speed: {summary.avg_speed_m_s:.3f} meters per second")
 
 
+def build_hud_lines(
+    *,
+    frame_number: int,
+    time_s: float,
+    points_tracked: int,
+    speed_px_s: float | None,
+    speed_m_s_value: float | None,
+    peak_speed_px_s: float | None,
+    scale_px_per_meter: float | None,
+) -> list[str]:
+    peak_speed_m_s = (
+        speed_m_s(peak_speed_px_s, scale_px_per_meter)
+        if peak_speed_px_s is not None and scale_px_per_meter is not None
+        else None
+    )
+    return [
+        f"Frame: {frame_number}  Time: {time_s:.2f}s",
+        format_speed_line(speed_px_s, speed_m_s_value),
+        format_speed_line(peak_speed_px_s, peak_speed_m_s).replace("Speed:", "Peak:"),
+        f"Tracked points: {points_tracked}",
+    ]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Track a barbell/object in a lift video.")
     parser.add_argument("-i", "--input", default="lift.mp4", help="Input video path")
@@ -233,6 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rep-direction", choices=("up", "down"), default="up", help="Concentric bar direction to segment")
     parser.add_argument("--min-rep-rom-px", type=int, default=20, help="Minimum vertical ROM in pixels for a rep")
     parser.add_argument("--min-rep-frames", type=int, default=3, help="Minimum tracked frames for a rep")
+    parser.add_argument("--no-hud", action="store_true", help="Hide live metric text on the annotated video")
     return parser
 
 
@@ -256,6 +308,7 @@ def main() -> int:
         rep_direction=args.rep_direction,
         min_rep_rom_px=args.min_rep_rom_px,
         min_rep_frames=args.min_rep_frames,
+        show_hud=not args.no_hud,
     )
     print_summary(summary)
     return 0

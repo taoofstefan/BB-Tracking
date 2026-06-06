@@ -123,3 +123,5 @@ With `--json-output`, it also writes:
 - per-rep velocity loss percentage against rep 1
 
 Velocity is pixel-based unless calibration is provided. With calibration, summary, frame, and rep metrics also include meters per second.
+
+The annotated video includes a small live HUD with frame time, current speed, peak speed, and tracked point count. Use `--no-hud` to keep only the bounding box and bar path trail.

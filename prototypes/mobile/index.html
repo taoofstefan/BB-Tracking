@@ -554,19 +554,32 @@
     }
 
     analyzeButton.disabled = true;
-    status.textContent = "Analyzing";
+    status.textContent = "Queued";
     analysisName.textContent = "Uploading";
     analysisName.classList.remove("error");
     serviceStatus.classList.remove("error");
     try {
-      const response = await fetch(`${baseUrl}/analyze`, {
+      const submitResponse = await fetch(`${baseUrl}/jobs`, {
         method: "POST",
         body: formData
       });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (!submitResponse.ok) {
+        throw new Error(`HTTP ${submitResponse.status}`);
       }
-      const payload = await response.json();
+      const job = await submitResponse.json();
+      analysisName.textContent = "Queued";
+      status.textContent = "Analyzing";
+      const completeJob = await pollAnalysisJob(baseUrl, job.job_id);
+      if (completeJob.status === "failed") {
+        throw new Error(completeJob.error || "Analysis failed");
+      }
+      const resultResponse = await fetch(`${baseUrl}/jobs/${completeJob.job_id}/result`, {
+        headers: { Accept: "application/json" }
+      });
+      if (!resultResponse.ok) {
+        throw new Error(`HTTP ${resultResponse.status}`);
+      }
+      const payload = await resultResponse.json();
       renderAnalysis(payload);
       analysisName.textContent = "Service response";
       status.textContent = "Analysis complete";
@@ -577,6 +590,28 @@
     } finally {
       analyzeButton.disabled = false;
     }
+  }
+
+  async function pollAnalysisJob(baseUrl, jobId) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const response = await fetch(`${baseUrl}/jobs/${jobId}`, {
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      serviceStatus.textContent = `Job ${payload.status}`;
+      if (payload.status === "complete" || payload.status === "failed") {
+        return payload;
+      }
+      await delay(1500);
+    }
+    throw new Error("Analysis timed out");
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async function checkServiceHealth() {

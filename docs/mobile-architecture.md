@@ -36,4 +36,4 @@ Keep the analysis data contract close to the current JSON shape:
 - `frames`
 - `reps`
 
-The static prototype can read mock data first. A React Native app can later send videos to a local/server Python analysis service and render the same contract.
+The static prototype can import the current JSON output directly. A React Native app can later send videos to a local/server Python analysis service and render the same contract.

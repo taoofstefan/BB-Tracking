@@ -245,6 +245,10 @@
       color: var(--amber);
       font-weight: 700;
     }
+
+    .error {
+      color: var(--red);
+    }
   </style>
 </head>
 <body>
@@ -267,6 +271,12 @@
       <input id="videoInput" type="file" accept="video/*">
       <label class="file-button" for="videoInput">Import</label>
       <div class="file-name" id="fileName">No file</div>
+    </div>
+    <div class="field">
+      <label for="analysisInput">Analysis</label>
+      <input id="analysisInput" type="file" accept="application/json,.json">
+      <label class="file-button" for="analysisInput">Load JSON</label>
+      <div class="file-name" id="analysisName">No data</div>
     </div>
     <div class="field">
       <label for="exercise">Exercise</label>
@@ -293,6 +303,7 @@
 
 <script>
   const videoInput = document.getElementById("videoInput");
+  const analysisInput = document.getElementById("analysisInput");
   const video = document.getElementById("video");
   const emptyStage = document.getElementById("emptyStage");
   const videoStage = document.getElementById("videoStage");
@@ -303,6 +314,7 @@
   const resetButton = document.getElementById("resetButton");
   const repList = document.getElementById("repList");
   const fileName = document.getElementById("fileName");
+  const analysisName = document.getElementById("analysisName");
 
   let videoUrl = null;
 
@@ -318,6 +330,22 @@
     status.textContent = "Video loaded";
   });
 
+  analysisInput.addEventListener("change", async () => {
+    const file = analysisInput.files[0];
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text());
+      renderAnalysis(payload);
+      analysisName.textContent = file.name;
+      analysisName.classList.remove("error");
+      status.textContent = "Analysis loaded";
+    } catch (error) {
+      analysisName.textContent = "Invalid JSON";
+      analysisName.classList.add("error");
+      status.textContent = "Analysis failed";
+    }
+  });
+
   videoStage.addEventListener("click", (event) => {
     const rect = videoStage.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -331,26 +359,97 @@
   });
 
   analyzeButton.addEventListener("click", () => {
-    document.getElementById("reps").textContent = "5";
-    document.getElementById("peak").textContent = "0.82";
-    document.getElementById("average").textContent = "0.54";
-    document.getElementById("slowdown").textContent = "18%";
-    repList.innerHTML = [0, 4, 9, 13, 18].map((loss, index) => {
-      const fill = Math.max(30, 100 - loss * 3);
-      return `<div class="rep"><strong>Rep ${index + 1}</strong><div class="bar"><div class="fill" style="width:${fill}%"></div></div><div class="loss">${loss}%</div></div>`;
-    }).join("");
+    renderAnalysis({
+      summary: {
+        rep_count: 5,
+        max_speed_m_s: 0.82,
+        avg_speed_m_s: 0.54
+      },
+      reps: [0, 4, 9, 13, 18].map((loss, index) => ({
+        index: index + 1,
+        mean_speed_m_s: 0.62 - index * 0.05,
+        velocity_loss_pct: loss
+      }))
+    });
     status.textContent = "Analysis preview";
   });
 
   resetButton.addEventListener("click", () => {
     marker.style.display = "none";
     path.style.display = "none";
-    repList.innerHTML = "";
+    clearRepList();
     for (const id of ["reps", "peak", "average", "slowdown"]) {
       document.getElementById(id).textContent = "--";
     }
     status.textContent = video.hidden ? "Prototype" : "Video loaded";
   });
+
+  function renderAnalysis(payload) {
+    const summary = payload.summary || {};
+    const reps = Array.isArray(payload.reps) ? payload.reps : [];
+    const velocityLoss = reps
+      .map((rep) => Number(rep.velocity_loss_pct))
+      .filter((value) => Number.isFinite(value));
+    const maxLoss = velocityLoss.length ? Math.max(...velocityLoss) : null;
+
+    document.getElementById("reps").textContent = formatCount(summary.rep_count ?? reps.length);
+    document.getElementById("peak").textContent = formatSpeed(summary.max_speed_m_s, summary.max_speed_px_s);
+    document.getElementById("average").textContent = formatSpeed(summary.avg_speed_m_s, summary.avg_speed_px_s);
+    document.getElementById("slowdown").textContent = formatPercent(maxLoss);
+    renderReps(reps);
+  }
+
+  function renderReps(reps) {
+    clearRepList();
+    for (const rep of reps) {
+      const loss = Number(rep.velocity_loss_pct);
+      const displayLoss = Number.isFinite(loss) ? loss : 0;
+      const fill = Math.max(30, 100 - displayLoss * 3);
+      const row = document.createElement("div");
+      row.className = "rep";
+
+      const title = document.createElement("strong");
+      title.textContent = `Rep ${formatCount(rep.index)}`;
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fillEl = document.createElement("div");
+      fillEl.className = "fill";
+      fillEl.style.width = `${fill}%`;
+      bar.appendChild(fillEl);
+
+      const lossEl = document.createElement("div");
+      lossEl.className = "loss";
+      lossEl.textContent = formatPercent(rep.velocity_loss_pct);
+
+      row.append(title, bar, lossEl);
+      repList.appendChild(row);
+    }
+  }
+
+  function clearRepList() {
+    while (repList.firstChild) {
+      repList.removeChild(repList.firstChild);
+    }
+  }
+
+  function formatCount(value) {
+    return Number.isFinite(Number(value)) ? String(Number(value)) : "--";
+  }
+
+  function formatPercent(value) {
+    return Number.isFinite(Number(value)) ? `${Number(value).toFixed(0)}%` : "--";
+  }
+
+  function formatSpeed(metersPerSecond, pixelsPerSecond) {
+    if (Number.isFinite(Number(metersPerSecond))) {
+      return Number(metersPerSecond).toFixed(2);
+    }
+    if (Number.isFinite(Number(pixelsPerSecond))) {
+      return Number(pixelsPerSecond).toFixed(0);
+    }
+    return "--";
+  }
 </script>
 </body>
 </html>

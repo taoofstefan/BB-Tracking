@@ -37,7 +37,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Add video import screen.
 - [x] Add exercise selector.
 - [x] Add tap-to-select-bar UI.
-- [ ] Show set summary and annotated playback.
+- [x] Show set summary and annotated playback.
 
 ## Open Questions
 

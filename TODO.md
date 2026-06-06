@@ -54,6 +54,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Wire the calibration workflow into the service and mobile prototype: accept `reference_px` + `reference_m` on `/analyze` and `/jobs`, derive `scale_px_per_meter` via `metrics.scale_from_reference`, keep the direct scale field, and add compact Reference px / Reference m inputs to the prototype.
 - [x] Add a visual reference picker in the mobile prototype so two taps on the displayed video fill `reference_px`; `reference_m` remains manual.
 - [x] Add an optional phase-based rep detector mode (`--rep-detector direction|phase`) that smooths the bar path, ignores deadband deltas, and absorbs short jitter reversals so a single rep isn't split by a small reversal. Direction mode stays the default and golden sample remains stable.
+- [x] Add per-rep jump and play-segment controls to the mobile prototype: when analysis reps include `start_time_s` / `end_time_s`, each rep row gets compact icon buttons that seek the existing `<video id="video">` to the rep start or play until the rep end and pause. Use a one-shot `timeupdate` listener (no runaway timers) and disable/ignore controls when no video is loaded or timing is missing.
 
 ## Open Questions
 

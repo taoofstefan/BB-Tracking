@@ -299,7 +299,7 @@
 
     .rep {
       display: grid;
-      grid-template-columns: 54px 1fr 76px;
+      grid-template-columns: 54px 1fr auto;
       align-items: center;
       gap: 10px;
       border: 1px solid var(--line);
@@ -320,10 +320,39 @@
       background: var(--green);
     }
 
+    .rep-end {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .loss {
       text-align: right;
       color: var(--amber);
       font-weight: 700;
+      min-width: 36px;
+    }
+
+    .rep-control {
+      min-height: 0;
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .rep-control[disabled] {
+      background: #e5ebf2;
+      border-color: var(--line);
+      color: var(--muted);
+      cursor: not-allowed;
+      opacity: 1;
     }
 
     .error {
@@ -471,6 +500,86 @@
   let calibrationActive = false;
   let calibPointA = null;
   let calibPointB = null;
+  let repSegmentEnd = null;
+
+  function clearRepSegmentPlayback() {
+    if (repSegmentEnd !== null) {
+      video.removeEventListener("timeupdate", onRepSegmentTimeUpdate);
+      repSegmentEnd = null;
+    }
+  }
+
+  function onRepSegmentTimeUpdate() {
+    if (repSegmentEnd === null) return;
+    if (video.currentTime >= repSegmentEnd) {
+      const end = repSegmentEnd;
+      clearRepSegmentPlayback();
+      video.pause();
+      try {
+        video.currentTime = end;
+      } catch (error) {
+        // Some browsers reject seeking past the buffer; ignore.
+      }
+      status.textContent = "Rep paused";
+    }
+  }
+
+  function isVideoReady() {
+    return !video.hidden && !!video.src;
+  }
+
+  function jumpToRep(rep) {
+    if (!isVideoReady()) {
+      status.textContent = "No video loaded";
+      return;
+    }
+    const start = Number(rep.start_time_s);
+    if (!Number.isFinite(start)) {
+      status.textContent = "Rep timing missing";
+      return;
+    }
+    clearRepSegmentPlayback();
+    try {
+      video.currentTime = Math.max(0, start);
+    } catch (error) {
+      status.textContent = "Seek failed";
+      return;
+    }
+    if (!video.paused) {
+      video.pause();
+    }
+    status.textContent = `Rep ${formatCount(rep.index)} @ ${start.toFixed(2)}s`;
+  }
+
+  function playRepSegment(rep) {
+    if (!isVideoReady()) {
+      status.textContent = "No video loaded";
+      return;
+    }
+    const start = Number(rep.start_time_s);
+    const end = Number(rep.end_time_s);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      status.textContent = "Rep timing missing";
+      return;
+    }
+    clearRepSegmentPlayback();
+    try {
+      video.currentTime = Math.max(0, start);
+    } catch (error) {
+      status.textContent = "Seek failed";
+      return;
+    }
+    repSegmentEnd = end;
+    video.addEventListener("timeupdate", onRepSegmentTimeUpdate);
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        clearRepSegmentPlayback();
+        status.textContent = "Playback blocked";
+      });
+    }
+    status.textContent = `Playing rep ${formatCount(rep.index)}`;
+  }
 
   videoInput.addEventListener("change", () => {
     const file = videoInput.files[0];
@@ -478,10 +587,12 @@
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     videoUrl = URL.createObjectURL(file);
     fileName.textContent = file.name;
+    clearRepSegmentPlayback();
     video.src = videoUrl;
     video.hidden = false;
     emptyStage.hidden = true;
     status.textContent = "Video loaded";
+    refreshRepControlsState();
   });
 
   analysisInput.addEventListener("change", async () => {
@@ -640,11 +751,17 @@
         center_x: [110, 112, 113, 116, 118, 119, 121][step],
         center_y: [230, 210, 185, 160, 150, 170, 205][step]
       })),
-      reps: [0, 4, 9, 13, 18].map((loss, index) => ({
-        index: index + 1,
-        mean_speed_m_s: 0.62 - index * 0.05,
-        velocity_loss_pct: loss
-      }))
+      reps: [0, 4, 9, 13, 18].map((loss, index) => {
+        const start = 0.6 + index * 2.0;
+        const end = start + 1.4;
+        return {
+          index: index + 1,
+          start_time_s: start,
+          end_time_s: end,
+          mean_speed_m_s: 0.62 - index * 0.05,
+          velocity_loss_pct: loss
+        };
+      })
     };
   }
 
@@ -657,6 +774,7 @@
     videoStage.classList.remove("calibrating");
     calibPickButton.textContent = "Pick Reference";
     clearCalibrationHandles();
+    clearRepSegmentPlayback();
     clearRepList();
     clearCharts("Load analysis JSON");
     for (const id of ["reps", "peak", "average", "slowdown", "maxDrift", "avgDrift", "romCv", "sticking"]) {
@@ -800,8 +918,10 @@
     video.src = annotatedUrl;
     video.hidden = false;
     emptyStage.hidden = true;
+    clearRepSegmentPlayback();
     video.load();
     status.textContent = "Annotated video ready";
+    refreshRepControlsState();
   }
 
   async function pollAnalysisJob(baseUrl, jobId) {
@@ -920,12 +1040,55 @@
       fillEl.style.width = `${fill}%`;
       bar.appendChild(fillEl);
 
+      const end = document.createElement("div");
+      end.className = "rep-end";
+
       const lossEl = document.createElement("div");
       lossEl.className = "loss";
       lossEl.textContent = formatPercent(rep.velocity_loss_pct);
+      end.appendChild(lossEl);
 
-      row.append(title, bar, lossEl);
+      const hasTiming = repHasTiming(rep);
+      const ready = isVideoReady() && hasTiming;
+
+      const jumpButton = document.createElement("button");
+      jumpButton.type = "button";
+      jumpButton.className = "rep-control secondary";
+      jumpButton.dataset.action = "jump";
+      jumpButton.dataset.hasTiming = hasTiming ? "1" : "0";
+      jumpButton.setAttribute("aria-label", `Jump to rep ${formatCount(rep.index)}`);
+      jumpButton.title = hasTiming ? "Jump to rep" : "Rep timing unavailable";
+      jumpButton.textContent = "⤴";
+      jumpButton.disabled = !ready;
+      jumpButton.addEventListener("click", () => jumpToRep(rep));
+
+      const playButton = document.createElement("button");
+      playButton.type = "button";
+      playButton.className = "rep-control";
+      playButton.dataset.action = "play";
+      playButton.dataset.hasTiming = hasTiming ? "1" : "0";
+      playButton.setAttribute("aria-label", `Play rep ${formatCount(rep.index)}`);
+      playButton.title = hasTiming ? "Play rep segment" : "Rep timing unavailable";
+      playButton.textContent = "▶";
+      playButton.disabled = !ready;
+      playButton.addEventListener("click", () => playRepSegment(rep));
+
+      end.append(jumpButton, playButton);
+      row.append(title, bar, end);
       repList.appendChild(row);
+    }
+  }
+
+  function repHasTiming(rep) {
+    const start = Number(rep.start_time_s);
+    const end = Number(rep.end_time_s);
+    return Number.isFinite(start) && Number.isFinite(end) && end > start;
+  }
+
+  function refreshRepControlsState() {
+    const buttons = repList.querySelectorAll(".rep-control");
+    for (const button of buttons) {
+      button.disabled = !isVideoReady() || button.dataset.hasTiming !== "1";
     }
   }
 

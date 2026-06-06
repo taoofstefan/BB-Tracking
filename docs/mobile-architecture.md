@@ -28,6 +28,7 @@ For the immediate prototype, plain HTML/CSS/JS keeps the project dependency-ligh
 - Bar selection: tap-to-place target marker on the first frame.
 - Analysis status: queued, processing, complete, failed.
 - Set review: annotated playback, summary metrics, per-rep table, velocity loss, and bar path.
+- Per-rep jump / play-segment controls: when an analysis JSON includes `start_time_s` and `end_time_s`, each rep row exposes two compact icon buttons (jump-to-start, play-segment). The play button attaches a one-shot `timeupdate` listener that pauses the existing `<video id="video">` at `end_time_s` and removes the listener, with no `setInterval` or leaked handlers. Both controls are disabled when no video is loaded or when rep timing is missing.
 
 ## Upgrade Path
 

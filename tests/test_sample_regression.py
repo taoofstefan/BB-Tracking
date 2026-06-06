@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from analysis_schema import assert_valid_analysis_payload
 from barbell_tracker import track_video
 
 
@@ -32,6 +33,7 @@ def test_sample_video_metrics_match_golden_fixture(tmp_path):
     )
 
     actual = json.loads(output_json.read_text(encoding="utf-8"))
+    assert_valid_analysis_payload(actual)
     expected = json.loads(EXPECTED_FILE.read_text(encoding="utf-8"))
     assert_summary_matches(actual["summary"], expected["summary"])
     assert_reps_match(actual["reps"], expected["reps"])

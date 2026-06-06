@@ -128,3 +128,10 @@ Each `quality.reps[]` entry contains `index`, `horizontal_drift_px`, `min_center
 - `rom_consistency_cv` is a ratio. Display `0.399` as `39.9%`.
 - `sticking_rep_index` and `reps[].index` are already 1-based.
 - Mobile clients should ignore unknown fields.
+
+## Validation
+
+`analysis_schema.validate_analysis_payload(payload)` returns all detected contract
+errors as human-readable strings and accepts unknown additive fields.
+`analysis_schema.assert_valid_analysis_payload(payload)` raises `ValueError` with
+the collected errors joined by `; `.

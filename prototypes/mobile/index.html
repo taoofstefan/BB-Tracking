@@ -787,6 +787,10 @@
 
   const HISTORY_STORAGE_KEY = "bbtracking.history.v1";
   const HISTORY_MAX_ENTRIES = 5;
+  // Cap per-entry stored frames to keep localStorage lean. Charts only need
+  // a downsampled shape to render legibly; full telemetry belongs in the
+  // exported JSON, not the rolling session history.
+  const HISTORY_MAX_FRAMES = 120;
 
   // Lift presets keep the analysis knobs sensible for common lifts while
   // leaving the user free to tweak any field manually. Defaults are tuned for
@@ -1332,8 +1336,13 @@
       recordAnalysisEntry(payload, "service");
       await loadAnnotatedVideo(baseUrl, completeJob.job_id);
     } catch (error) {
+      const message = (error && error.message) ? error.message : String(error);
       analysisName.textContent = "Service error";
       analysisName.classList.add("error");
+      // Replace the stale "Queued" / "Job running" / "Uploading" text with
+      // the actual failure so the user can see why the run didn't finish.
+      serviceStatus.textContent = `Service error: ${message}`;
+      serviceStatus.classList.add("error");
       status.textContent = "Analysis failed";
     } finally {
       analyzeButton.disabled = false;
@@ -1493,9 +1502,58 @@
     };
   }
 
+  // Build a compact, restorable payload for localStorage: keep the summary,
+  // quality, and reps blocks verbatim, but downsample the heavy frames array
+  // to at most HISTORY_MAX_FRAMES points so the chart still draws a smooth
+  // shape. No blobs, no videos, no oversized telemetry.
+  function compactifyPayload(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    const compact = {
+      summary: payload.summary || {},
+      quality: payload.quality || {},
+      reps: Array.isArray(payload.reps) ? payload.reps : [],
+      frames: downsampleFrames(payload.frames, HISTORY_MAX_FRAMES)
+    };
+    return compact;
+  }
+
+  function downsampleFrames(frames, maxFrames) {
+    if (!Array.isArray(frames) || frames.length === 0) return [];
+    if (frames.length <= maxFrames) {
+      return frames.map(stripFrameForHistory).filter(Boolean);
+    }
+    const stride = frames.length / maxFrames;
+    const sampled = [];
+    for (let i = 0; i < maxFrames; i += 1) {
+      const index = Math.min(frames.length - 1, Math.floor(i * stride));
+      sampled.push(frames[index]);
+    }
+    return sampled.map(stripFrameForHistory).filter(Boolean);
+  }
+
+  // Keep only the fields the charts need; bbox/raw frame index stay in the
+  // JSON export rather than the rolling session history.
+  function stripFrameForHistory(frame) {
+    if (!frame || typeof frame !== "object") return null;
+    return {
+      time_s: frame.time_s,
+      center_x: frame.center_x,
+      center_y: frame.center_y,
+      speed_m_s: frame.speed_m_s,
+      speed_px_s: frame.speed_px_s
+    };
+  }
+
   function recordAnalysisEntry(payload, source) {
     if (!payload || typeof payload !== "object") return;
+    // Demo runs clutter the session list with a static preview on every
+    // reload; the demo button is still useful for a quick UI check, but it
+    // should not contribute to rolling history. Real JSON uploads and
+    // service analyses are preserved.
+    if (source === "Demo") return;
     const summary = summarizePayload(payload);
+    const compact = compactifyPayload(payload);
+    if (!compact) return;
     const entry = {
       id: `h-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       created_at: new Date().toISOString(),
@@ -1507,7 +1565,7 @@
         peak: summary.peak,
         unit: summary.unit
       },
-      payload
+      payload: compact
     };
     const existing = getHistoryStorage();
     // Deduplicate by created_at: keep the newest at the top.
@@ -1558,6 +1616,18 @@
     }
     try {
       renderAnalysis(entry.payload);
+      // Best-effort restore of the exercise dropdown so the preset hint
+      // and any rep options tied to that lift match the saved context.
+      // Unknown exercises (older / hand-edited entries) fall back silently.
+      if (entry.exercise && exerciseSelect) {
+        const match = Array.from(exerciseSelect.options).find(
+          (option) => option.text === entry.exercise
+        );
+        if (match) {
+          exerciseSelect.value = match.value;
+          renderPresetHint();
+        }
+      }
       // Do not change video.src on restore.
       const sourceLabel = String(entry.source || "history").startsWith("json:")
         ? "Restored (JSON)"

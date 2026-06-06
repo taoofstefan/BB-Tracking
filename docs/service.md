@@ -31,6 +31,15 @@ The prototype can send the selected video to the async jobs flow. Keep the defau
 
 The prototype forwards compact analysis options too: tracker selection defaults to `mosse`, and scale defaults to `100` pixels per meter. Leave scale blank for pixel-only speed output.
 
+### Calibration Fields
+
+Both `/analyze` and `/jobs` accept the same calibration inputs:
+
+- `scale_px_per_meter`: a direct pixel-to-meter ratio. Leave blank for pixel-only output.
+- `reference_px` and `reference_m`: a known reference length measured in pixels and meters. When both are provided, the service derives `scale_px_per_meter` using `metrics.scale_from_reference(reference_px, reference_m)`.
+- Reference fields must be provided as a pair. Sending only one of `reference_px` / `reference_m` returns `400`.
+- When both a direct `scale_px_per_meter` and the reference pair are provided, the **reference-derived scale wins** (the reference pair is the more explicit calibration intent). Leave `scale_px_per_meter` blank when using a reference to keep the intent obvious.
+
 Synchronous example:
 
 ```bash
@@ -41,6 +50,17 @@ curl -X POST http://127.0.0.1:8000/analyze \
   -F scale_px_per_meter=100
 ```
 
+Or derive the scale from a reference length:
+
+```bash
+curl -X POST http://127.0.0.1:8000/analyze \
+  -F video=@lift.mp4 \
+  -F roi=300,120,80,40 \
+  -F tracker=mosse \
+  -F reference_px=220 \
+  -F reference_m=2.2
+```
+
 Async job example:
 
 ```bash
@@ -49,6 +69,17 @@ curl -X POST http://127.0.0.1:8000/jobs \
   -F roi=300,120,80,40 \
   -F tracker=mosse \
   -F scale_px_per_meter=100
+```
+
+Or with a reference pair:
+
+```bash
+curl -X POST http://127.0.0.1:8000/jobs \
+  -F video=@lift.mp4 \
+  -F roi=300,120,80,40 \
+  -F tracker=mosse \
+  -F reference_px=220 \
+  -F reference_m=2.2
 ```
 
 Then poll `GET /jobs/{job_id}` every 1-2 seconds until status is `complete`, and fetch `GET /jobs/{job_id}/result`.

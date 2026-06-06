@@ -83,6 +83,8 @@ python main.py \
 
 For a standard Olympic barbell, `--reference-m 2.2` is a useful first approximation if the full bar length is visible and marked in pixels.
 
+The local analysis service (`service.py`) accepts the same calibration inputs as multipart form fields on `/analyze` and `/jobs`: `scale_px_per_meter`, or a `reference_px` + `reference_m` pair. The reference pair is converted to `scale_px_per_meter` server-side; the reference pair takes precedence when both are sent. See `docs/service.md` for details.
+
 ## Rep Segmentation
 
 The CLI includes a conservative vertical-path heuristic for rep segmentation. It looks for movement phases in one direction and filters out phases that are too short or too small.

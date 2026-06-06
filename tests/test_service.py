@@ -303,3 +303,178 @@ def test_get_job_video_returns_410_when_file_missing(monkeypatch):
     video_response = client.get(f"/jobs/{job_id}/video")
 
     assert video_response.status_code == 410
+
+
+def test_analyze_endpoint_derives_scale_from_reference_when_fastapi_is_installed(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    captured: dict[str, object] = {}
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        captured["scale_px_per_meter"] = params["scale_px_per_meter"]
+        captured["reference_px"] = params["reference_px"]
+        captured["reference_m"] = params["reference_m"]
+        return {"summary": {"rep_count": 1}, "frames": [], "reps": []}
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/analyze",
+        data={
+            "roi": "300,120,80,40",
+            "reference_px": "220",
+            "reference_m": "2.2",
+        },
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert captured["scale_px_per_meter"] == pytest.approx(100)
+    assert captured["reference_px"] == pytest.approx(220)
+    assert captured["reference_m"] == pytest.approx(2.2)
+
+
+def test_analyze_endpoint_keeps_direct_scale_without_reference(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    captured: dict[str, object] = {}
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        captured["scale_px_per_meter"] = params["scale_px_per_meter"]
+        captured["reference_px"] = params["reference_px"]
+        return {"summary": {"rep_count": 0}, "frames": [], "reps": []}
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/analyze",
+        data={"roi": "300,120,80,40", "scale_px_per_meter": "75"},
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert captured["scale_px_per_meter"] == pytest.approx(75)
+    assert captured["reference_px"] is None
+
+
+def test_analyze_endpoint_reference_overrides_direct_scale(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    captured: dict[str, object] = {}
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        captured["scale_px_per_meter"] = params["scale_px_per_meter"]
+        return {"summary": {"rep_count": 0}, "frames": [], "reps": []}
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/analyze",
+        data={
+            "roi": "300,120,80,40",
+            "scale_px_per_meter": "75",
+            "reference_px": "220",
+            "reference_m": "2.2",
+        },
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    # Reference-derived scale wins over the direct scale.
+    assert captured["scale_px_per_meter"] == pytest.approx(100)
+
+
+def test_analyze_endpoint_rejects_incomplete_reference_when_fastapi_is_installed():
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/analyze",
+        data={"roi": "300,120,80,40", "reference_px": "220"},
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 400
+    assert "reference_px" in response.json()["detail"]
+    assert "reference_m" in response.json()["detail"]
+
+
+def test_analyze_endpoint_rejects_negative_reference_when_fastapi_is_installed():
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/analyze",
+        data={
+            "roi": "300,120,80,40",
+            "reference_px": "0",
+            "reference_m": "2.2",
+        },
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 400
+    assert "reference_px" in response.json()["detail"]
+
+
+def test_post_jobs_uses_reference_scale_when_fastapi_is_installed(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    captured: dict[str, object] = {}
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        captured["scale_px_per_meter"] = params["scale_px_per_meter"]
+        captured["reference_px"] = params["reference_px"]
+        captured["reference_m"] = params["reference_m"]
+        return {"summary": {"rep_count": 3}, "frames": [], "reps": []}
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/jobs",
+        data={
+            "roi": "300,120,80,40",
+            "tracker": "mosse",
+            "reference_px": "220",
+            "reference_m": "2.2",
+        },
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    status_response = client.get(f"/jobs/{job_id}")
+    assert status_response.json()["status"] == "complete"
+    result = client.get(f"/jobs/{job_id}/result").json()
+    assert result["summary"]["rep_count"] == 3
+    assert captured["scale_px_per_meter"] == pytest.approx(100)
+    assert captured["reference_px"] == pytest.approx(220)
+    assert captured["reference_m"] == pytest.approx(2.2)
+
+
+def test_post_jobs_rejects_incomplete_reference_when_fastapi_is_installed():
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/jobs",
+        data={"roi": "300,120,80,40", "reference_m": "2.2"},
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    assert response.status_code == 400
+    assert service.JOB_STORE == {}

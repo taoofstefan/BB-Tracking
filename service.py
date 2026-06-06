@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from barbell_tracker import parse_roi, track_video
+from metrics import scale_from_reference
 
 
 class JobStatus(str, Enum):
@@ -54,19 +55,38 @@ def build_analysis_params(
     roi: str,
     tracker: str,
     scale_px_per_meter: str | None,
+    reference_px: str | None = None,
+    reference_m: str | None = None,
     rep_direction: str,
     min_rep_rom_px: int,
     min_rep_frames: int,
     rep_smoothing_window: int,
     rep_deadband_px: float,
 ) -> dict[str, Any]:
+    reference_px_value = parse_optional_positive_float(reference_px, "reference_px")
+    reference_m_value = parse_optional_positive_float(reference_m, "reference_m")
+    if (reference_px_value is None) != (reference_m_value is None):
+        raise ValueError("reference_px and reference_m must be provided together")
+    derived_scale: float | None = None
+    if reference_px_value is not None and reference_m_value is not None:
+        derived_scale = scale_from_reference(reference_px_value, reference_m_value)
+    direct_scale = parse_optional_positive_float(
+        scale_px_per_meter,
+        "scale_px_per_meter",
+    )
+    # Precedence: when both direct scale and reference calibration are provided,
+    # the reference-derived scale wins because it is a more explicit calibration
+    # intent. Callers can avoid this by leaving one of the two unset.
+    effective_scale = derived_scale if derived_scale is not None else direct_scale
     return {
         "roi": parse_roi(roi),
         "tracker": tracker,
-        "scale_px_per_meter": parse_optional_positive_float(
-            scale_px_per_meter,
-            "scale_px_per_meter",
-        ),
+        "scale_px_per_meter": effective_scale,
+        "scale_source": "reference" if derived_scale is not None
+        else "direct" if direct_scale is not None
+        else "none",
+        "reference_px": reference_px_value,
+        "reference_m": reference_m_value,
         "rep_direction": rep_direction,
         "min_rep_rom_px": min_rep_rom_px,
         "min_rep_frames": min_rep_frames,
@@ -162,6 +182,8 @@ def create_app():
         roi: str = Form(...),
         tracker: str = Form("mosse"),
         scale_px_per_meter: str | None = Form(None),
+        reference_px: str | None = Form(None),
+        reference_m: str | None = Form(None),
         rep_direction: str = Form("up"),
         min_rep_rom_px: int = Form(20),
         min_rep_frames: int = Form(3),
@@ -173,6 +195,8 @@ def create_app():
                 roi=roi,
                 tracker=tracker,
                 scale_px_per_meter=scale_px_per_meter,
+                reference_px=reference_px,
+                reference_m=reference_m,
                 rep_direction=rep_direction,
                 min_rep_rom_px=min_rep_rom_px,
                 min_rep_frames=min_rep_frames,
@@ -202,6 +226,8 @@ def create_app():
         roi: str = Form(...),
         tracker: str = Form("mosse"),
         scale_px_per_meter: str | None = Form(None),
+        reference_px: str | None = Form(None),
+        reference_m: str | None = Form(None),
         rep_direction: str = Form("up"),
         min_rep_rom_px: int = Form(20),
         min_rep_frames: int = Form(3),
@@ -213,6 +239,8 @@ def create_app():
                 roi=roi,
                 tracker=tracker,
                 scale_px_per_meter=scale_px_per_meter,
+                reference_px=reference_px,
+                reference_m=reference_m,
                 rep_direction=rep_direction,
                 min_rep_rom_px=min_rep_rom_px,
                 min_rep_frames=min_rep_frames,

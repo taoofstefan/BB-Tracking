@@ -33,10 +33,10 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 
 ## Phase 4: Mobile Prototype
 
-- [ ] Decide first mobile stack.
-- [ ] Add video import screen.
-- [ ] Add exercise selector.
-- [ ] Add tap-to-select-bar UI.
+- [x] Decide first mobile stack.
+- [x] Add video import screen.
+- [x] Add exercise selector.
+- [x] Add tap-to-select-bar UI.
 - [ ] Show set summary and annotated playback.
 
 ## Open Questions

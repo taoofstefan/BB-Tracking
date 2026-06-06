@@ -15,7 +15,7 @@ This repo is now being shaped toward a mobile app idea: record or import a lift,
 
 ## Product Direction
 
-See [docs/product-brief.md](docs/product-brief.md) for the app concept, [docs/roadmap.md](docs/roadmap.md) for the first implementation steps, and [docs/usage.md](docs/usage.md) for the current CLI.
+See [docs/product-brief.md](docs/product-brief.md) for the app concept, [docs/roadmap.md](docs/roadmap.md) for the first implementation steps, [docs/mobile-architecture.md](docs/mobile-architecture.md) for the mobile stack decision, and [docs/usage.md](docs/usage.md) for the current CLI.
 
 ## Quick Start
 
@@ -32,11 +32,11 @@ python main.py --input lift.mp4 --output output.avi --roi 300,120,80,40 --no-dis
 
 ## Current Limitations
 
-- Velocity is measured in pixels per second, not meters per second.
+- Meter-per-second velocity depends on manual calibration.
 - Tracking depends on manual ROI selection.
 - The tracker can drift or fail when the bar is occluded.
-- There is no rep segmentation yet.
-- There is no calibration, JSON output, test suite, or mobile app shell yet.
+- Rep segmentation is heuristic and based on vertical bar movement.
+- The mobile prototype is a static shell, not a connected app.
 - The scripts assume desktop OpenCV UI support.
 
 ## Near-Term Goal

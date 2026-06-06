@@ -187,3 +187,119 @@ def test_post_jobs_validates_roi_when_fastapi_is_installed():
 
     assert response.status_code == 400
     assert service.JOB_STORE == {}
+
+
+def test_get_job_video_returns_annotated_avi_when_complete(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        assert input_path.exists()
+        # Write a tiny stand-in for the annotated AVI so the endpoint can stream it.
+        output_path.write_bytes(b"FAKEAVI" + b"\x00" * 8)
+        json_path.write_text("{}", encoding="utf-8")
+        return {"summary": {"rep_count": 1}, "frames": [], "reps": []}
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/jobs",
+        data={"roi": "300,120,80,40", "tracker": "mosse"},
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    job_id = response.json()["job_id"]
+    video_response = client.get(f"/jobs/{job_id}/video")
+    head_response = client.head(f"/jobs/{job_id}/video")
+
+    assert video_response.status_code == 200
+    assert video_response.headers["content-type"].startswith("video/x-msvideo")
+    assert f'filename="{job_id}.avi"' in video_response.headers["content-disposition"]
+    assert len(video_response.content) > 0
+    assert video_response.content.startswith(b"FAKEAVI")
+    assert head_response.status_code == 200
+    assert head_response.headers["content-type"].startswith("video/x-msvideo")
+
+
+def test_get_job_video_unknown_job_returns_404_when_fastapi_is_installed():
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    client = testclient.TestClient(create_app())
+
+    assert client.get("/jobs/missing/video").status_code == 404
+
+
+def test_get_job_video_before_completion_returns_409_when_fastapi_is_installed():
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import JOB_LOCK, JOB_STORE, create_app
+
+    temp_dir = TemporaryDirectory(prefix="bbtracking-test-job-")
+    job = AnalysisJob(
+        job_id="queued-video-job",
+        status=JobStatus.QUEUED,
+        temp_dir=temp_dir,
+        input_path=service.Path(temp_dir.name) / "input.mp4",
+        output_path=service.Path(temp_dir.name) / "annotated.avi",
+        json_path=service.Path(temp_dir.name) / "analysis.json",
+        params={},
+    )
+    with JOB_LOCK:
+        JOB_STORE[job.job_id] = job
+
+    client = testclient.TestClient(create_app())
+    response = client.get(f"/jobs/{job.job_id}/video")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["status"] == "queued"
+
+
+def test_get_job_video_for_failed_job_returns_409_when_fastapi_is_installed(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/jobs",
+        data={"roi": "300,120,80,40"},
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    job_id = response.json()["job_id"]
+    video_response = client.get(f"/jobs/{job_id}/video")
+
+    assert video_response.status_code == 409
+    assert video_response.json()["detail"]["status"] == "failed"
+
+
+def test_get_job_video_returns_410_when_file_missing(monkeypatch):
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    def fake_run_analysis(input_path, output_path, json_path, params):
+        # Simulate a complete job whose annotated file was cleaned up.
+        return {"summary": {"rep_count": 0}, "frames": [], "reps": []}
+
+    monkeypatch.setattr(service, "run_analysis", fake_run_analysis)
+    client = testclient.TestClient(create_app())
+
+    response = client.post(
+        "/jobs",
+        data={"roi": "300,120,80,40"},
+        files={"video": ("lift.mp4", b"not really a video", "video/mp4")},
+    )
+
+    job_id = response.json()["job_id"]
+    job = service.JOB_STORE[job_id]
+    # Force the output file to be missing even though the job is complete.
+    job.output_path.unlink(missing_ok=True)
+
+    video_response = client.get(f"/jobs/{job_id}/video")
+
+    assert video_response.status_code == 410

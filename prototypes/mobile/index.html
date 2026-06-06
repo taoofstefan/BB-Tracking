@@ -583,6 +583,7 @@
       renderAnalysis(payload);
       analysisName.textContent = "Service response";
       status.textContent = "Analysis complete";
+      await loadAnnotatedVideo(baseUrl, completeJob.job_id);
     } catch (error) {
       analysisName.textContent = "Service error";
       analysisName.classList.add("error");
@@ -590,6 +591,29 @@
     } finally {
       analyzeButton.disabled = false;
     }
+  }
+
+  async function loadAnnotatedVideo(baseUrl, jobId) {
+    const annotatedUrl = `${baseUrl}/jobs/${jobId}/video`;
+    try {
+      const probe = await fetch(annotatedUrl, { method: "HEAD" });
+      if (!probe.ok) {
+        status.textContent = probe.status === 409
+          ? "Annotated video not ready"
+          : probe.status === 410
+            ? "Annotated video expired"
+            : `Annotated video unavailable (HTTP ${probe.status})`;
+        return;
+      }
+    } catch (error) {
+      status.textContent = "Annotated video unavailable";
+      return;
+    }
+    video.src = annotatedUrl;
+    video.hidden = false;
+    emptyStage.hidden = true;
+    video.load();
+    status.textContent = "Annotated video ready";
   }
 
   async function pollAnalysisJob(baseUrl, jobId) {

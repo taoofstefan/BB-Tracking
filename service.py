@@ -138,7 +138,7 @@ def create_app():
     try:
         from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
         from fastapi.middleware.cors import CORSMiddleware
-        from fastapi.responses import JSONResponse
+        from fastapi.responses import FileResponse, JSONResponse
     except ImportError as exc:
         raise RuntimeError(
             "FastAPI service dependencies are missing. Install requirements-service.txt."
@@ -266,5 +266,32 @@ def create_app():
                 )
             result = job.result
         return JSONResponse(result)
+
+    @app.get("/jobs/{job_id}/video")
+    @app.head("/jobs/{job_id}/video")
+    def get_job_video(job_id: str) -> FileResponse:
+        with JOB_LOCK:
+            job = JOB_STORE.get(job_id)
+            if job is None:
+                raise HTTPException(status_code=404, detail="unknown job")
+            if job.status != JobStatus.COMPLETE:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "annotated video not available",
+                        "status": job.status.value,
+                    },
+                )
+            output_path = job.output_path
+        if not output_path.exists():
+            raise HTTPException(
+                status_code=410,
+                detail="annotated video file is no longer available",
+            )
+        return FileResponse(
+            output_path,
+            media_type="video/x-msvideo",
+            filename=f"{job_id}.avi",
+        )
 
     return app

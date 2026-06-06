@@ -50,6 +50,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Expose tracker and scale options in the mobile prototype.
 - [x] Compare MOSSE/KCF/CSRT tracker behavior on the sample video.
 - [x] Add local async job submission and polling for prototype analysis.
+- [x] Expose the annotated video via `GET /jobs/{job_id}/video` and let the mobile prototype switch to it after async analysis completes.
 
 ## Open Questions
 

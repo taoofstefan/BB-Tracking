@@ -86,6 +86,8 @@ python main.py \
 
 Use `--rep-direction up` for lifts where the relevant concentric phase moves upward in the video frame. Use `--rep-direction down` for experiments where the tracked target moves downward. This is still a heuristic; bad tracking, camera angle, or occlusion can create bad rep boundaries.
 
+`velocity_loss_pct` is calculated against the first detected rep's mean pixel velocity. A positive value means the rep was slower than rep 1; a negative value means it was faster.
+
 ## Tracker Options
 
 ```bash
@@ -118,5 +120,6 @@ With `--json-output`, it also writes:
 - speed in pixels per second for that frame
 - speed in meters per second for that frame when calibration is provided
 - per-rep start/end frames, duration, ROM, peak speed, and mean speed
+- per-rep velocity loss percentage against rep 1
 
 Velocity is still pixel-based. Calibration to meters per second is planned in a later phase.

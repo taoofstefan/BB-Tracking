@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
-from reps import detect_rep_ranges, summarize_rep_speeds
+from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
 
 
 @dataclass(frozen=True)
@@ -191,7 +191,7 @@ def track_video(
             min_rom_px=min_rep_rom_px,
             min_frames=min_rep_frames,
         )
-        rep_summaries = [
+        rep_summaries = with_velocity_loss([
             summarize_rep_speeds(
                 index,
                 rep_range,
@@ -201,7 +201,7 @@ def track_video(
                 speeds_m_s=[frame.speed_m_s for frame in telemetry],
             )
             for index, rep_range in enumerate(rep_ranges, start=1)
-        ]
+        ])
         summary = TrackingSummary(
             output_file=str(output_path),
             frames_processed=frames_processed,

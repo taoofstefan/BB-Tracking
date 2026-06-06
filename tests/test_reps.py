@@ -1,6 +1,6 @@
 import pytest
 
-from reps import detect_rep_ranges, summarize_rep_speeds
+from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
 
 
 def test_detect_rep_ranges_finds_upward_phases():
@@ -67,3 +67,28 @@ def test_summarize_rep_speeds_builds_rep_summary():
     assert summary.mean_speed_px_s == 120.0
     assert summary.peak_speed_m_s == 1.4
     assert summary.mean_speed_m_s == 1.2
+    assert summary.velocity_loss_pct is None
+
+
+def test_with_velocity_loss_compares_mean_speed_to_first_rep():
+    first = summarize_rep_speeds(
+        1,
+        detect_rep_ranges([200, 170, 140], direction="up", min_rom_px=30, min_frames=2)[0],
+        frames=[1, 2, 3],
+        times=[0.0, 0.1, 0.2],
+        speeds_px_s=[None, 100.0, 100.0],
+        speeds_m_s=[None, None, None],
+    )
+    second = summarize_rep_speeds(
+        2,
+        detect_rep_ranges([210, 180, 150], direction="up", min_rom_px=30, min_frames=2)[0],
+        frames=[4, 5, 6],
+        times=[0.3, 0.4, 0.5],
+        speeds_px_s=[None, 80.0, 80.0],
+        speeds_m_s=[None, None, None],
+    )
+
+    reps = with_velocity_loss([first, second])
+
+    assert reps[0].velocity_loss_pct == pytest.approx(0)
+    assert reps[1].velocity_loss_pct == pytest.approx(20)

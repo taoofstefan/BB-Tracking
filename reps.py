@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from statistics import mean
 from typing import Sequence
 
@@ -25,6 +25,7 @@ class RepSummary:
     mean_speed_px_s: float | None
     peak_speed_m_s: float | None
     mean_speed_m_s: float | None
+    velocity_loss_pct: float | None
 
 
 def detect_rep_ranges(
@@ -116,4 +117,22 @@ def summarize_rep_speeds(
         mean_speed_px_s=mean(speed_slice) if speed_slice else None,
         peak_speed_m_s=max(calibrated_slice) if calibrated_slice else None,
         mean_speed_m_s=mean(calibrated_slice) if calibrated_slice else None,
+        velocity_loss_pct=None,
     )
+
+
+def with_velocity_loss(reps: Sequence[RepSummary]) -> list[RepSummary]:
+    if not reps:
+        return []
+    baseline = reps[0].mean_speed_px_s
+    if baseline is None or baseline <= 0:
+        return list(reps)
+    return [
+        replace(
+            rep,
+            velocity_loss_pct=((baseline - rep.mean_speed_px_s) / baseline * 100)
+            if rep.mean_speed_px_s is not None
+            else None,
+        )
+        for rep in reps
+    ]

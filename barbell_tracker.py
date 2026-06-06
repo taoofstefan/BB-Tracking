@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
+from metrics import speed_px_s, summarize_speeds
 
 @dataclass(frozen=True)
 class TrackingSummary:
@@ -50,13 +50,6 @@ def create_tracker(name: str):
     raise RuntimeError(
         f"OpenCV tracker '{normalized}' is unavailable. Install opencv-contrib-python."
     )
-
-
-def summarize_speeds(speeds: Iterable[float]) -> tuple[float | None, float | None, float | None]:
-    values = list(speeds)
-    if not values:
-        return None, None, None
-    return max(values), min(values), sum(values) / len(values)
 
 
 def track_video(
@@ -126,11 +119,7 @@ def track_video(
 
                 if len(positions) > 1:
                     cv2.line(overlay, positions[-1], positions[-2], (0, 0, 255), 2)
-                    distance = np.sqrt(
-                        (positions[-1][0] - positions[-2][0]) ** 2
-                        + (positions[-1][1] - positions[-2][1]) ** 2
-                    )
-                    speeds.append(float(distance * fps))
+                    speeds.append(speed_px_s(positions[-2], positions[-1], fps))
 
             frame = cv2.addWeighted(frame, 1, overlay, 0.5, 0)
             out.write(frame)

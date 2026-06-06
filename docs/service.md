@@ -40,6 +40,10 @@ Both `/analyze` and `/jobs` accept the same calibration inputs:
 - Reference fields must be provided as a pair. Sending only one of `reference_px` / `reference_m` returns `400`.
 - When both a direct `scale_px_per_meter` and the reference pair are provided, the **reference-derived scale wins** (the reference pair is the more explicit calibration intent). Leave `scale_px_per_meter` blank when using a reference to keep the intent obvious.
 
+The mobile prototype includes a visual reference picker that fills `reference_px`
+from two tapped points on the displayed video. `reference_m` still needs to be
+entered manually.
+
 Synchronous example:
 
 ```bash

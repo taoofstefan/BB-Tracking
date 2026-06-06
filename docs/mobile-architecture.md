@@ -24,6 +24,7 @@ For the immediate prototype, plain HTML/CSS/JS keeps the project dependency-ligh
 
 - Capture/import: local video picker and future camera entry point.
 - Lift setup: exercise selector, side/front angle, and optional calibration hints.
+- Calibration helper: tap two points on the displayed video to fill reference pixels, then enter the known real-world distance manually.
 - Bar selection: tap-to-place target marker on the first frame.
 - Analysis status: queued, processing, complete, failed.
 - Set review: annotated playback, summary metrics, per-rep table, velocity loss, and bar path.

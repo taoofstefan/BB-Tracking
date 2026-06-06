@@ -99,6 +99,33 @@
       display: none;
     }
 
+    .calib-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: none;
+    }
+
+    .calib-handle {
+      fill: #ffffff;
+      stroke: var(--blue);
+      stroke-width: 2;
+    }
+
+    .calib-line {
+      stroke: #ffffff;
+      stroke-width: 2;
+      stroke-dasharray: 4 3;
+    }
+
+    .video-stage.calibrating {
+      cursor: crosshair;
+      outline: 2px dashed rgba(22, 100, 192, 0.6);
+      outline-offset: -2px;
+    }
+
     .path {
       position: absolute;
       width: 3px;
@@ -123,6 +150,14 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+    }
+
+    .picker-button {
+      width: 100%;
+      min-height: 38px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
     }
 
     .wide {
@@ -308,6 +343,11 @@
     <div class="empty-stage" id="emptyStage">No video selected</div>
     <div class="path" id="path"></div>
     <div class="marker" id="marker"></div>
+    <svg class="calib-svg" id="calibSvg" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <line class="calib-line" id="calibLine" x1="0" y1="0" x2="0" y2="0"></line>
+      <circle class="calib-handle" id="calibA" cx="0" cy="0" r="7"></circle>
+      <circle class="calib-handle" id="calibB" cx="0" cy="0" r="7"></circle>
+    </svg>
   </section>
 
   <section class="controls">
@@ -364,6 +404,7 @@
       <label for="referenceMInput">Reference m</label>
       <input id="referenceMInput" type="number" min="0.01" step="any" inputmode="decimal" placeholder="optional">
     </div>
+    <button class="secondary picker-button wide" id="calibPickButton" type="button">Pick Reference</button>
     <button id="analyzeButton">Analyze</button>
     <button class="secondary" id="resetButton">Reset</button>
   </section>
@@ -404,6 +445,11 @@
   const videoStage = document.getElementById("videoStage");
   const marker = document.getElementById("marker");
   const path = document.getElementById("path");
+  const calibSvg = document.getElementById("calibSvg");
+  const calibLine = document.getElementById("calibLine");
+  const calibA = document.getElementById("calibA");
+  const calibB = document.getElementById("calibB");
+  const calibPickButton = document.getElementById("calibPickButton");
   const status = document.getElementById("status");
   const analyzeButton = document.getElementById("analyzeButton");
   const resetButton = document.getElementById("resetButton");
@@ -422,6 +468,9 @@
   const pathChart = document.getElementById("pathChart");
 
   let videoUrl = null;
+  let calibrationActive = false;
+  let calibPointA = null;
+  let calibPointB = null;
 
   videoInput.addEventListener("change", () => {
     const file = videoInput.files[0];
@@ -455,12 +504,24 @@
     const rect = videoStage.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+    if (calibrationActive) {
+      handleCalibrationClick(x, y);
+      return;
+    }
     marker.style.left = `${x}px`;
     marker.style.top = `${y}px`;
     marker.style.display = "block";
     path.style.left = `${x + 8}px`;
     path.style.display = "block";
     status.textContent = "Bar selected";
+  });
+
+  calibPickButton.addEventListener("click", () => {
+    if (calibrationActive) {
+      exitCalibrationMode();
+    } else {
+      enterCalibrationMode();
+    }
   });
 
   serviceCheckButton.addEventListener("click", checkServiceHealth);
@@ -472,6 +533,91 @@
       return;
     }
     runServiceAnalysis();
+  });
+
+  function enterCalibrationMode() {
+    calibrationActive = true;
+    calibPointA = null;
+    calibPointB = null;
+    clearCalibrationHandles();
+    videoStage.classList.add("calibrating");
+    calibPickButton.textContent = "Cancel";
+    status.textContent = "Calibration: tap point 1";
+  }
+
+  function exitCalibrationMode() {
+    calibrationActive = false;
+    calibPointA = null;
+    calibPointB = null;
+    clearCalibrationHandles();
+    videoStage.classList.remove("calibrating");
+    calibPickButton.textContent = "Pick Reference";
+    status.textContent = "Calibration cancelled";
+  }
+
+  function handleCalibrationClick(x, y) {
+    if (!calibPointA) {
+      calibPointA = { x, y };
+      showCalibPoint(calibA, x, y);
+      status.textContent = "Calibration: tap point 2";
+      return;
+    }
+    if (!calibPointB) {
+      calibPointB = { x, y };
+      showCalibPoint(calibB, x, y);
+      drawCalibLine();
+      const dx = calibPointB.x - calibPointA.x;
+      const dy = calibPointB.y - calibPointA.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      referencePxInput.value = distance.toFixed(1);
+      calibrationActive = false;
+      videoStage.classList.remove("calibrating");
+      calibPickButton.textContent = "Pick Reference";
+      status.textContent = `Reference: ${distance.toFixed(1)} px`;
+    }
+  }
+
+  function showCalibPoint(circle, x, y) {
+    const rect = videoStage.getBoundingClientRect();
+    circle.setAttribute("cx", String(x));
+    circle.setAttribute("cy", String(y));
+    circle.setAttribute("r", "7");
+    circle.style.display = "";
+    if (!calibSvg.style.display || calibSvg.style.display === "none") {
+      calibSvg.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+    }
+    calibSvg.style.display = "block";
+  }
+
+  function drawCalibLine() {
+    if (!calibPointA || !calibPointB) return;
+    calibLine.setAttribute("x1", String(calibPointA.x));
+    calibLine.setAttribute("y1", String(calibPointA.y));
+    calibLine.setAttribute("x2", String(calibPointB.x));
+    calibLine.setAttribute("y2", String(calibPointB.y));
+    calibLine.style.display = "";
+  }
+
+  function clearCalibrationHandles() {
+    calibA.style.display = "none";
+    calibB.style.display = "none";
+    calibLine.style.display = "none";
+    calibA.setAttribute("cx", "0");
+    calibA.setAttribute("cy", "0");
+    calibB.setAttribute("cx", "0");
+    calibB.setAttribute("cy", "0");
+    calibLine.setAttribute("x1", "0");
+    calibLine.setAttribute("y1", "0");
+    calibLine.setAttribute("x2", "0");
+    calibLine.setAttribute("y2", "0");
+    calibSvg.style.display = "none";
+  }
+
+  window.addEventListener("resize", () => {
+    if (calibSvg.style.display === "block") {
+      const rect = videoStage.getBoundingClientRect();
+      calibSvg.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+    }
   });
 
   function buildDemoPayload() {
@@ -505,6 +651,12 @@
   resetButton.addEventListener("click", () => {
     marker.style.display = "none";
     path.style.display = "none";
+    calibrationActive = false;
+    calibPointA = null;
+    calibPointB = null;
+    videoStage.classList.remove("calibrating");
+    calibPickButton.textContent = "Pick Reference";
+    clearCalibrationHandles();
     clearRepList();
     clearCharts("Load analysis JSON");
     for (const id of ["reps", "peak", "average", "slowdown", "maxDrift", "avgDrift", "romCv", "sticking"]) {

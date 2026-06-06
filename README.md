@@ -15,7 +15,7 @@ This repo is now being shaped toward a mobile app idea: record or import a lift,
 
 ## Product Direction
 
-See [docs/product-brief.md](docs/product-brief.md) for the app concept, [docs/roadmap.md](docs/roadmap.md) for the first implementation steps, [docs/mobile-architecture.md](docs/mobile-architecture.md) for the mobile stack decision, [docs/service.md](docs/service.md) for the optional API spike, [docs/tracker-comparison.md](docs/tracker-comparison.md) for tracker results, and [docs/usage.md](docs/usage.md) for the current CLI.
+See [docs/product-brief.md](docs/product-brief.md) for the app concept, [docs/roadmap.md](docs/roadmap.md) for the first implementation steps, [docs/analysis-contract.md](docs/analysis-contract.md) for the JSON contract, [docs/mobile-architecture.md](docs/mobile-architecture.md) for the mobile stack decision, [docs/service.md](docs/service.md) for the optional API spike, [docs/tracker-comparison.md](docs/tracker-comparison.md) for tracker results, and [docs/usage.md](docs/usage.md) for the current CLI.
 
 ## Quick Start
 

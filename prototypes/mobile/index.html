@@ -333,6 +333,13 @@
     <div class="metric"><div class="name">Slowdown</div><div class="value" id="slowdown">--</div></div>
   </section>
 
+  <section class="summary">
+    <div class="metric"><div class="name">Max Drift</div><div class="value" id="maxDrift">--</div></div>
+    <div class="metric"><div class="name">Avg Drift</div><div class="value" id="avgDrift">--</div></div>
+    <div class="metric"><div class="name">ROM CV</div><div class="value" id="romCv">--</div></div>
+    <div class="metric"><div class="name">Sticking</div><div class="value" id="sticking">--</div></div>
+  </section>
+
   <section class="charts">
     <div class="chart-panel">
       <div class="chart-title">Velocity</div>
@@ -413,6 +420,13 @@
         max_speed_m_s: 0.82,
         avg_speed_m_s: 0.54
       },
+      quality: {
+        max_horizontal_drift_px: 18.4,
+        avg_horizontal_drift_px: 9.2,
+        rom_consistency_cv: 0.14,
+        sticking_rep_index: 4,
+        sticking_time_s: 8.35
+      },
       frames: [0, 1, 2, 3, 4, 5, 6].map((step) => ({
         time_s: step * 0.2,
         speed_m_s: [0.1, 0.45, 0.62, 0.58, 0.38, 0.25, 0.2][step],
@@ -433,7 +447,7 @@
     path.style.display = "none";
     clearRepList();
     clearCharts("Load analysis JSON");
-    for (const id of ["reps", "peak", "average", "slowdown"]) {
+    for (const id of ["reps", "peak", "average", "slowdown", "maxDrift", "avgDrift", "romCv", "sticking"]) {
       document.getElementById(id).textContent = "--";
     }
     status.textContent = video.hidden ? "Prototype" : "Video loaded";
@@ -456,8 +470,16 @@
     document.getElementById("peak").textContent = formatSpeed(summary.max_speed_m_s, summary.max_speed_px_s);
     document.getElementById("average").textContent = formatSpeed(summary.avg_speed_m_s, summary.avg_speed_px_s);
     document.getElementById("slowdown").textContent = formatPercent(maxLoss);
+    renderQuality(payload.quality || {});
     renderReps(reps);
     renderCharts(frames);
+  }
+
+  function renderQuality(quality) {
+    document.getElementById("maxDrift").textContent = formatPixels(quality.max_horizontal_drift_px);
+    document.getElementById("avgDrift").textContent = formatPixels(quality.avg_horizontal_drift_px);
+    document.getElementById("romCv").textContent = formatRatioPercent(quality.rom_consistency_cv);
+    document.getElementById("sticking").textContent = formatSticking(quality);
   }
 
   function renderReps(reps) {
@@ -565,6 +587,26 @@
 
   function formatPercent(value) {
     return Number.isFinite(Number(value)) ? `${Number(value).toFixed(0)}%` : "--";
+  }
+
+  function formatRatioPercent(value) {
+    return Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "--";
+  }
+
+  function formatPixels(value) {
+    return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)} px` : "--";
+  }
+
+  function formatSticking(quality) {
+    if (quality.sticking_rep_index == null || quality.sticking_time_s == null) {
+      return "--";
+    }
+    const repIndex = Number(quality.sticking_rep_index);
+    const time = Number(quality.sticking_time_s);
+    if (!Number.isFinite(repIndex) || !Number.isFinite(time)) {
+      return "--";
+    }
+    return `Rep ${repIndex} @ ${time.toFixed(2)}s`;
   }
 
   function formatSpeed(metersPerSecond, pixelsPerSecond) {

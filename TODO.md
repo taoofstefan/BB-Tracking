@@ -45,6 +45,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Render velocity and bar path charts from analysis JSON.
 - [x] Render quality metrics from analysis JSON.
 - [x] Add optional analysis service spike.
+- [x] Add prototype service health check.
 - [x] Compare MOSSE/KCF/CSRT tracker behavior on the sample video.
 
 ## Open Questions

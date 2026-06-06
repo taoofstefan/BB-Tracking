@@ -2,6 +2,8 @@
 
 The service is an optional FastAPI wrapper around the existing CLI pipeline. It is intended as a local backend target for the mobile prototype, not as a production API.
 
+The service enables permissive CORS for local prototype development so the static HTML prototype can call it from a browser.
+
 ## Install
 
 ```bash
@@ -18,6 +20,8 @@ uvicorn service:create_app --factory --reload
 
 - `GET /health` returns `{"status": "ok"}`.
 - `POST /analyze` accepts a multipart video upload and analysis options, then returns the same JSON contract produced by `--json-output`.
+
+The mobile prototype includes a service URL field and health check button. Start the service locally, keep the default `http://127.0.0.1:8000`, and use the health check before wiring analysis uploads.
 
 Example:
 

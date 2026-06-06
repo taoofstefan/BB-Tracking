@@ -33,3 +33,13 @@ def test_create_app_health_endpoint_when_fastapi_is_installed():
     client = testclient.TestClient(create_app())
 
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_create_app_health_endpoint_allows_dev_cors_when_fastapi_is_installed():
+    testclient = pytest.importorskip("fastapi.testclient")
+    from service import create_app
+
+    client = testclient.TestClient(create_app())
+    response = client.get("/health", headers={"Origin": "file://"})
+
+    assert response.headers["access-control-allow-origin"] == "*"

@@ -23,6 +23,7 @@ def safe_video_suffix(filename: str | None) -> str:
 def create_app():
     try:
         from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+        from fastapi.middleware.cors import CORSMiddleware
         from fastapi.responses import JSONResponse
     except ImportError as exc:
         raise RuntimeError(
@@ -30,6 +31,12 @@ def create_app():
         ) from exc
 
     app = FastAPI(title="BB-Tracking Analysis Service")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -125,6 +125,16 @@
       gap: 6px;
     }
 
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .service-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 104px;
+      gap: 10px;
+    }
+
     label {
       font-size: 12px;
       color: var(--muted);
@@ -322,6 +332,14 @@
         <option>Overhead press</option>
       </select>
     </div>
+    <div class="field wide">
+      <label for="serviceUrl">Service</label>
+      <div class="service-row">
+        <input id="serviceUrl" type="url" value="http://127.0.0.1:8000">
+        <button class="secondary" id="serviceCheckButton" type="button">Check</button>
+      </div>
+      <div class="file-name" id="serviceStatus">Not checked</div>
+    </div>
     <button id="analyzeButton">Analyze</button>
     <button class="secondary" id="resetButton">Reset</button>
   </section>
@@ -365,6 +383,9 @@
   const status = document.getElementById("status");
   const analyzeButton = document.getElementById("analyzeButton");
   const resetButton = document.getElementById("resetButton");
+  const serviceUrl = document.getElementById("serviceUrl");
+  const serviceCheckButton = document.getElementById("serviceCheckButton");
+  const serviceStatus = document.getElementById("serviceStatus");
   const repList = document.getElementById("repList");
   const fileName = document.getElementById("fileName");
   const analysisName = document.getElementById("analysisName");
@@ -413,6 +434,8 @@
     status.textContent = "Bar selected";
   });
 
+  serviceCheckButton.addEventListener("click", checkServiceHealth);
+
   analyzeButton.addEventListener("click", () => {
     renderAnalysis({
       summary: {
@@ -455,6 +478,38 @@
 
   if (new URLSearchParams(window.location.search).get("demo") === "1") {
     analyzeButton.click();
+  }
+
+  async function checkServiceHealth() {
+    const baseUrl = normalizeServiceUrl(serviceUrl.value);
+    if (!baseUrl) {
+      serviceStatus.textContent = "Service URL missing";
+      serviceStatus.classList.add("error");
+      status.textContent = "Service failed";
+      return;
+    }
+
+    serviceStatus.textContent = "Checking";
+    serviceStatus.classList.remove("error");
+    status.textContent = "Checking service";
+    try {
+      const response = await fetch(`${baseUrl}/health`, {
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      serviceStatus.textContent = "Service ok";
+      status.textContent = "Service ok";
+    } catch (error) {
+      serviceStatus.textContent = "Service failed";
+      serviceStatus.classList.add("error");
+      status.textContent = "Service failed";
+    }
+  }
+
+  function normalizeServiceUrl(value) {
+    return value.trim().replace(/\/+$/, "");
   }
 
   function renderAnalysis(payload) {

@@ -13,6 +13,7 @@ def write_analysis_json(
     summary: object,
     telemetry: Sequence[object],
     reps: Sequence[RepSummary],
+    quality: object | None = None,
 ) -> None:
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -21,4 +22,6 @@ def write_analysis_json(
         "frames": [asdict(frame) for frame in telemetry],
         "reps": [asdict(rep) for rep in reps],
     }
+    if quality is not None:
+        payload["quality"] = asdict(quality)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

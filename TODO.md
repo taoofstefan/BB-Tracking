@@ -31,6 +31,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Add smoothing and deadband controls for rep segmentation.
 - [x] Report per-rep peak velocity and mean velocity.
 - [x] Report per-rep velocity loss.
+- [x] Report bar path quality metrics.
 - [x] Overlay live frame, speed, peak speed, and tracking counts on output video.
 
 ## Phase 4: Mobile Prototype

@@ -44,11 +44,21 @@ def test_render_report_html_contains_summary_charts_and_reps():
         }
     ]
 
-    html = render_report_html(summary, frames, reps)
+    quality = {
+        "max_horizontal_drift_px": 12,
+        "avg_horizontal_drift_px": 8,
+        "rom_consistency_cv": 0.1,
+        "sticking_speed_px_s": 50,
+        "sticking_speed_m_s": 0.5,
+    }
+
+    html = render_report_html(summary, frames, reps, quality)
 
     assert "Barbell Tracking Report" in html
     assert "Velocity Over Time" in html
     assert "Bar Path" in html
+    assert "Path Quality" in html
+    assert "10.0%" in html
     assert "1.100 m/s" in html
 
 

@@ -140,6 +140,7 @@ With `--json-output`, it also writes:
 - speed in meters per second for that frame when calibration is provided
 - per-rep start/end frames, duration, ROM, peak speed, and mean speed
 - per-rep velocity loss percentage against rep 1
+- bar path quality metrics: horizontal drift, ROM consistency, and the slowest tracked point per rep
 
 Velocity is pixel-based unless calibration is provided. With calibration, summary, frame, and rep metrics also include meters per second.
 

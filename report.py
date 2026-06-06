@@ -11,16 +11,23 @@ def write_report_html(
     summary: object,
     frames: Sequence[object],
     reps: Sequence[object],
+    quality: object | None = None,
 ) -> None:
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_report_html(summary, frames, reps), encoding="utf-8")
+    output_path.write_text(render_report_html(summary, frames, reps, quality), encoding="utf-8")
 
 
-def render_report_html(summary: object, frames: Sequence[object], reps: Sequence[object]) -> str:
+def render_report_html(
+    summary: object,
+    frames: Sequence[object],
+    reps: Sequence[object],
+    quality: object | None = None,
+) -> str:
     summary_data = object_to_dict(summary)
     frame_rows = [object_to_dict(frame) for frame in frames]
     rep_rows = [object_to_dict(rep) for rep in reps]
+    quality_data = object_to_dict(quality) if quality is not None else {}
     title = "Barbell Tracking Report"
     return f"""<!doctype html>
 <html lang="en">
@@ -64,6 +71,15 @@ def render_report_html(summary: object, frames: Sequence[object], reps: Sequence
   <section class="panel">
     <h2>Bar Path</h2>
     {render_path_chart(frame_rows)}
+  </section>
+  <section class="panel">
+    <h2>Path Quality</h2>
+    <div class="metrics">
+      {render_metric("Max Drift", format_px(quality_data.get("max_horizontal_drift_px")))}
+      {render_metric("Avg Drift", format_px(quality_data.get("avg_horizontal_drift_px")))}
+      {render_metric("ROM CV", format_percent_value(quality_data.get("rom_consistency_cv")))}
+      {render_metric("Sticking Speed", format_speed(quality_data.get("sticking_speed_px_s"), quality_data.get("sticking_speed_m_s")))}
+    </div>
   </section>
   <section class="panel">
     <h2>Reps</h2>
@@ -181,6 +197,18 @@ def format_percent(value: object) -> str:
     if value is None:
         return "--"
     return f"{float(value):.1f}%"
+
+
+def format_percent_value(value: object) -> str:
+    if value is None:
+        return "--"
+    return f"{float(value) * 100:.1f}%"
+
+
+def format_px(value: object) -> str:
+    if value is None:
+        return "--"
+    return f"{float(value):.1f} px"
 
 
 def format_speed(px_s: object, m_s: object) -> str:

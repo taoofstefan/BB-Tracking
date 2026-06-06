@@ -7,6 +7,7 @@ from pathlib import Path
 from analysis_io import write_analysis_json
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
 from overlay import apply_trail, draw_tracking_overlay, format_speed_line
+from quality import analyze_path_quality
 from report import write_report_html
 from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
 from tracking import create_tracker, select_roi, update_tracker
@@ -208,6 +209,7 @@ def track_video(
             )
             for index, rep_range in enumerate(rep_ranges, start=1)
         ])
+        quality = analyze_path_quality(telemetry, rep_ranges)
         summary = TrackingSummary(
             output_file=str(output_path),
             frames_processed=frames_processed,
@@ -222,9 +224,9 @@ def track_video(
             rep_count=len(rep_summaries),
         )
         if json_output:
-            write_analysis_json(json_output, summary, telemetry, rep_summaries)
+            write_analysis_json(json_output, summary, telemetry, rep_summaries, quality)
         if report_output:
-            write_report_html(report_output, summary, telemetry, rep_summaries)
+            write_report_html(report_output, summary, telemetry, rep_summaries, quality)
         return summary
     finally:
         cap.release()

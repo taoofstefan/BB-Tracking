@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from metrics import speed_px_s, summarize_speeds
+from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,10 @@ class TrackingSummary:
     max_speed_px_s: float | None
     min_speed_px_s: float | None
     avg_speed_px_s: float | None
+    scale_px_per_meter: float | None
+    max_speed_m_s: float | None
+    min_speed_m_s: float | None
+    avg_speed_m_s: float | None
 
 
 @dataclass(frozen=True)
@@ -29,6 +33,7 @@ class TrackingFrame:
     center_x: int
     center_y: int
     speed_px_s: float | None
+    speed_m_s: float | None
 
 
 def parse_roi(value: str) -> tuple[int, int, int, int]:
@@ -75,6 +80,7 @@ def track_video(
     roi: tuple[int, int, int, int] | None = None,
     display: bool = True,
     json_output: str | Path | None = None,
+    scale_px_per_meter: float | None = None,
 ) -> TrackingSummary:
     import cv2
     import numpy as np
@@ -140,6 +146,11 @@ def track_video(
                     speeds.append(current_speed)
                 else:
                     current_speed = None
+                current_speed_m_s = (
+                    speed_m_s(current_speed, scale_px_per_meter)
+                    if current_speed is not None and scale_px_per_meter is not None
+                    else None
+                )
                 telemetry.append(
                     TrackingFrame(
                         frame=frames_processed,
@@ -151,6 +162,7 @@ def track_video(
                         center_x=cx,
                         center_y=cy,
                         speed_px_s=current_speed,
+                        speed_m_s=current_speed_m_s,
                     )
                 )
 
@@ -162,6 +174,12 @@ def track_video(
                     break
 
         max_speed, min_speed, avg_speed = summarize_speeds(speeds)
+        calibrated_speeds = (
+            [speed_m_s(speed, scale_px_per_meter) for speed in speeds]
+            if scale_px_per_meter is not None
+            else []
+        )
+        max_speed_m_s, min_speed_m_s, avg_speed_m_s = summarize_speeds(calibrated_speeds)
         summary = TrackingSummary(
             output_file=str(output_path),
             frames_processed=frames_processed,
@@ -169,6 +187,10 @@ def track_video(
             max_speed_px_s=max_speed,
             min_speed_px_s=min_speed,
             avg_speed_px_s=avg_speed,
+            scale_px_per_meter=scale_px_per_meter,
+            max_speed_m_s=max_speed_m_s,
+            min_speed_m_s=min_speed_m_s,
+            avg_speed_m_s=avg_speed_m_s,
         )
         if json_output:
             write_analysis_json(json_output, summary, telemetry)
@@ -190,6 +212,10 @@ def print_summary(summary: TrackingSummary) -> None:
     print(f"Max speed: {summary.max_speed_px_s:.2f} pixels per second")
     print(f"Min speed: {summary.min_speed_px_s:.2f} pixels per second")
     print(f"Avg speed: {summary.avg_speed_px_s:.2f} pixels per second")
+    if summary.avg_speed_m_s is not None:
+        print(f"Max speed: {summary.max_speed_m_s:.3f} meters per second")
+        print(f"Min speed: {summary.min_speed_m_s:.3f} meters per second")
+        print(f"Avg speed: {summary.avg_speed_m_s:.3f} meters per second")
 
 
 def write_analysis_json(
@@ -219,11 +245,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--roi", type=parse_roi, help="Headless ROI as x,y,w,h")
     parser.add_argument("--no-display", action="store_true", help="Disable preview windows")
     parser.add_argument("--json-output", help="Write summary and per-frame telemetry to JSON")
+    parser.add_argument("--scale-px-per-meter", type=float, help="Calibration scale in pixels per meter")
+    parser.add_argument("--reference-px", type=float, help="Reference length in pixels for calibration")
+    parser.add_argument("--reference-m", type=float, help="Reference length in meters for calibration")
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
+    scale_px_per_meter = args.scale_px_per_meter
+    if scale_px_per_meter is not None and scale_px_per_meter <= 0:
+        raise SystemExit("--scale-px-per-meter must be positive")
+    if args.reference_px is not None or args.reference_m is not None:
+        if args.reference_px is None or args.reference_m is None:
+            raise SystemExit("--reference-px and --reference-m must be provided together")
+        scale_px_per_meter = scale_from_reference(args.reference_px, args.reference_m)
     summary = track_video(
         args.input,
         args.output,
@@ -231,6 +267,7 @@ def main() -> int:
         roi=args.roi,
         display=not args.no_display,
         json_output=args.json_output,
+        scale_px_per_meter=scale_px_per_meter,
     )
     print_summary(summary)
     return 0

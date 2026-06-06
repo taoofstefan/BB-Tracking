@@ -23,8 +23,8 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 
 ## Phase 3: Calibration And Reps
 
-- [ ] Add pixel-to-meter calibration.
-- [ ] Support bar-length and plate-diameter calibration helpers.
+- [x] Add pixel-to-meter calibration.
+- [x] Support reference-length calibration helper.
 - [ ] Segment reps from bar path and velocity.
 - [ ] Report per-rep peak velocity, mean velocity, and velocity loss.
 

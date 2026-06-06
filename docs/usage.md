@@ -41,6 +41,33 @@ python main.py \
 
 The JSON file contains a summary block and one telemetry record per tracked frame.
 
+## Add Calibration
+
+Velocity is pixel-based by default. To also report meters per second, pass either a direct scale:
+
+```bash
+python main.py \
+  --input lift.mp4 \
+  --output output.avi \
+  --roi 300,120,80,40 \
+  --no-display \
+  --scale-px-per-meter 100
+```
+
+Or derive the scale from a known reference length:
+
+```bash
+python main.py \
+  --input lift.mp4 \
+  --output output.avi \
+  --roi 300,120,80,40 \
+  --no-display \
+  --reference-px 220 \
+  --reference-m 2.2
+```
+
+For a standard Olympic barbell, `--reference-m 2.2` is a useful first approximation if the full bar length is visible and marked in pixels.
+
 ## Tracker Options
 
 ```bash
@@ -61,6 +88,7 @@ The CLI prints:
 - max speed in pixels per second
 - min speed in pixels per second
 - average speed in pixels per second
+- calibrated speed in meters per second when calibration is provided
 
 With `--json-output`, it also writes:
 
@@ -69,5 +97,6 @@ With `--json-output`, it also writes:
 - bounding box
 - center point
 - speed in pixels per second for that frame
+- speed in meters per second for that frame when calibration is provided
 
 Velocity is still pixel-based. Calibration to meters per second is planned in a later phase.

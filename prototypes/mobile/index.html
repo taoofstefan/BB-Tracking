@@ -358,6 +358,34 @@
     .error {
       color: var(--red);
     }
+
+    .warnings {
+      margin: 0 16px 16px;
+      padding: 10px 12px;
+      border: 1px solid var(--amber);
+      background: #fff7e0;
+      color: #6b4400;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .warnings.has-warnings {
+      display: block;
+    }
+
+    .warnings strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .warnings ul {
+      margin: 0;
+      padding-left: 18px;
+    }
   </style>
 </head>
 <body>
@@ -464,6 +492,10 @@
   </section>
 
   <section class="rep-list" id="repList"></section>
+  <section class="warnings" id="warnings" aria-live="polite">
+    <strong>Tracking warnings</strong>
+    <ul id="warningsList"></ul>
+  </section>
 </main>
 
 <script>
@@ -491,6 +523,8 @@
   const referencePxInput = document.getElementById("referencePxInput");
   const referenceMInput = document.getElementById("referenceMInput");
   const repList = document.getElementById("repList");
+  const warningsPanel = document.getElementById("warnings");
+  const warningsList = document.getElementById("warningsList");
   const fileName = document.getElementById("fileName");
   const analysisName = document.getElementById("analysisName");
   const velocityChart = document.getElementById("velocityChart");
@@ -743,7 +777,10 @@
         avg_horizontal_drift_px: 9.2,
         rom_consistency_cv: 0.14,
         sticking_rep_index: 4,
-        sticking_time_s: 8.35
+        sticking_time_s: 8.35,
+        tracking_coverage_ratio: 0.92,
+        tracking_lost_frames: 6,
+        warnings: []
       },
       frames: [0, 1, 2, 3, 4, 5, 6].map((step) => ({
         time_s: step * 0.2,
@@ -777,6 +814,7 @@
     clearRepSegmentPlayback();
     clearRepList();
     clearCharts("Load analysis JSON");
+    renderWarnings({});
     for (const id of ["reps", "peak", "average", "slowdown", "maxDrift", "avgDrift", "romCv", "sticking"]) {
       document.getElementById(id).textContent = "--";
     }
@@ -1010,6 +1048,7 @@
     document.getElementById("average").textContent = formatSpeed(summary.avg_speed_m_s, summary.avg_speed_px_s);
     document.getElementById("slowdown").textContent = formatPercent(maxLoss);
     renderQuality(payload.quality || {});
+    renderWarnings(payload.quality || {});
     renderReps(reps);
     renderCharts(frames);
   }
@@ -1019,6 +1058,21 @@
     document.getElementById("avgDrift").textContent = formatPixels(quality.avg_horizontal_drift_px);
     document.getElementById("romCv").textContent = formatRatioPercent(quality.rom_consistency_cv);
     document.getElementById("sticking").textContent = formatSticking(quality);
+  }
+
+  function renderWarnings(quality) {
+    const warnings = Array.isArray(quality.warnings) ? quality.warnings.filter((item) => typeof item === "string" && item) : [];
+    clearElement(warningsList);
+    if (warnings.length === 0) {
+      warningsPanel.classList.remove("has-warnings");
+      return;
+    }
+    for (const message of warnings) {
+      const item = document.createElement("li");
+      item.textContent = message;
+      warningsList.appendChild(item);
+    }
+    warningsPanel.classList.add("has-warnings");
   }
 
   function renderReps(reps) {

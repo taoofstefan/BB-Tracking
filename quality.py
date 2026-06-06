@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from statistics import mean, pstdev
 from typing import Sequence
 
 from reps import RepRange
+
+
+# Thresholds for ``analyze_tracking_warnings``. Coverage is
+# ``points_tracked / frames_processed`` and is in [0, 1].
+COVERAGE_LOW_RATIO = 0.5  # below this, emit a high-severity warning
+COVERAGE_CAUTION_RATIO = 0.8  # below this, emit a caution warning
 
 
 @dataclass(frozen=True)
@@ -30,6 +36,9 @@ class PathQuality:
     sticking_speed_px_s: float | None
     sticking_speed_m_s: float | None
     reps: list[RepQuality]
+    tracking_coverage_ratio: float | None = None
+    tracking_lost_frames: int | None = None
+    warnings: list[str] = field(default_factory=list)
 
 
 def analyze_path_quality(frames: Sequence[object], rep_ranges: Sequence[RepRange]) -> PathQuality:
@@ -59,6 +68,93 @@ def analyze_path_quality(frames: Sequence[object], rep_ranges: Sequence[RepRange
         sticking_speed_px_s=global_sticking.sticking_speed_px_s if global_sticking else None,
         sticking_speed_m_s=global_sticking.sticking_speed_m_s if global_sticking else None,
         reps=rep_quality,
+        tracking_coverage_ratio=None,
+        tracking_lost_frames=None,
+        warnings=[],
+    )
+
+
+def analyze_tracking_warnings(
+    frames_processed: int | None,
+    points_tracked: int | None,
+    rep_count: int | None,
+) -> tuple[float | None, int | None, list[str]]:
+    """Compute tracking coverage and a list of human-readable warnings.
+
+    The helper is intentionally tolerant: it accepts counts that may be
+    ``None`` (returned as ``None``) and clamps negative or oversized values
+    so a misbehaving caller cannot crash the analysis pipeline.
+
+    Returns
+    -------
+    tuple
+        ``(coverage_ratio, lost_frames, warnings)`` where ``coverage_ratio``
+        is ``points_tracked / frames_processed`` (or ``None`` when there is
+        no frame data), ``lost_frames`` is ``frames_processed -
+        points_tracked`` clamped to zero (or ``None``), and ``warnings`` is
+        a list of short, user-facing strings describing tracking or rep
+        quality issues. The list is empty when the run looks healthy.
+    """
+
+    warnings: list[str] = []
+
+    if frames_processed is None or frames_processed <= 0:
+        warnings.append("No frames were processed; analysis is unreliable.")
+        return None, None, warnings
+
+    if points_tracked is None or points_tracked < 0:
+        points_tracked = 0
+
+    lost_frames = max(frames_processed - points_tracked, 0)
+    coverage = points_tracked / frames_processed
+
+    if points_tracked == 0:
+        warnings.append(
+            "No bar position was tracked; the bar may be off-screen or "
+            "the ROI is wrong."
+        )
+    elif coverage < COVERAGE_LOW_RATIO:
+        warnings.append(
+            f"Tracker lost the bar on {lost_frames} of {frames_processed} "
+            f"frames (coverage {coverage:.0%}); results may be unreliable."
+        )
+    elif coverage < COVERAGE_CAUTION_RATIO:
+        warnings.append(
+            f"Tracker lost the bar on {lost_frames} of {frames_processed} "
+            f"frames (coverage {coverage:.0%})."
+        )
+
+    if rep_count is None or rep_count <= 0:
+        warnings.append("No reps were detected in this video.")
+
+    return coverage, lost_frames, warnings
+
+
+def attach_tracking_warnings(
+    path_quality: PathQuality,
+    frames_processed: int,
+    points_tracked: int,
+    rep_count: int,
+) -> PathQuality:
+    """Return a new ``PathQuality`` with coverage, lost-frames, and warnings
+    populated by :func:`analyze_tracking_warnings`."""
+
+    coverage, lost_frames, warnings = analyze_tracking_warnings(
+        frames_processed, points_tracked, rep_count
+    )
+    return PathQuality(
+        max_horizontal_drift_px=path_quality.max_horizontal_drift_px,
+        avg_horizontal_drift_px=path_quality.avg_horizontal_drift_px,
+        rom_consistency_cv=path_quality.rom_consistency_cv,
+        sticking_rep_index=path_quality.sticking_rep_index,
+        sticking_frame=path_quality.sticking_frame,
+        sticking_time_s=path_quality.sticking_time_s,
+        sticking_speed_px_s=path_quality.sticking_speed_px_s,
+        sticking_speed_m_s=path_quality.sticking_speed_m_s,
+        reps=path_quality.reps,
+        tracking_coverage_ratio=coverage,
+        tracking_lost_frames=lost_frames,
+        warnings=warnings,
     )
 
 

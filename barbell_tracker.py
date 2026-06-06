@@ -7,7 +7,7 @@ from pathlib import Path
 from analysis_io import write_analysis_json
 from metrics import scale_from_reference, speed_m_s, speed_px_s, summarize_speeds
 from overlay import apply_trail, draw_tracking_overlay, format_speed_line
-from quality import analyze_path_quality
+from quality import analyze_path_quality, attach_tracking_warnings
 from report import write_report_html
 from reps import detect_rep_ranges, summarize_rep_speeds, with_velocity_loss
 from tracking import create_tracker, select_roi, update_tracker
@@ -214,6 +214,12 @@ def track_video(
             for index, rep_range in enumerate(rep_ranges, start=1)
         ])
         quality = analyze_path_quality(telemetry, rep_ranges)
+        quality = attach_tracking_warnings(
+            quality,
+            frames_processed=frames_processed,
+            points_tracked=len(positions),
+            rep_count=len(rep_summaries),
+        )
         summary = TrackingSummary(
             output_file=str(output_path),
             frames_processed=frames_processed,

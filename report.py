@@ -52,6 +52,8 @@ def render_report_html(
     th {{ color: #526173; font-weight: 700; }}
     svg {{ width: 100%; height: auto; display: block; }}
     .empty {{ color: #637083; }}
+    .warnings {{ background: #fff7e6; border: 1px solid #f0c674; border-radius: 6px; padding: 12px 16px; color: #6b4400; }}
+    .warnings ul {{ margin: 8px 0 0; padding-left: 20px; }}
   </style>
 </head>
 <body>
@@ -80,6 +82,7 @@ def render_report_html(
       {render_metric("ROM CV", format_percent_value(quality_data.get("rom_consistency_cv")))}
       {render_metric("Sticking Speed", format_speed(quality_data.get("sticking_speed_px_s"), quality_data.get("sticking_speed_m_s")))}
     </div>
+    {render_warnings(quality_data.get("warnings"))}
   </section>
   <section class="panel">
     <h2>Reps</h2>
@@ -217,3 +220,13 @@ def format_speed(px_s: object, m_s: object) -> str:
     if m_s is not None:
         return f"{float(m_s):.3f} m/s"
     return f"{float(px_s):.1f} px/s"
+
+
+def render_warnings(warnings: object) -> str:
+    if not isinstance(warnings, list) or not warnings:
+        return ""
+    items = "\n".join(f"<li>{escape(str(item))}</li>" for item in warnings)
+    return f"""<div class="warnings">
+  <strong>Tracking warnings</strong>
+  <ul>{items}</ul>
+</div>"""

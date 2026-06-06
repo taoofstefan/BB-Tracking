@@ -159,6 +159,7 @@ With `--json-output`, it also writes:
 - per-rep start/end frames, duration, ROM, peak speed, and mean speed
 - per-rep velocity loss percentage against rep 1
 - bar path quality metrics: horizontal drift, ROM consistency, and the slowest tracked point per rep
+- optional `quality.warnings`, `quality.tracking_coverage_ratio`, and `quality.tracking_lost_frames` to flag low tracking coverage, no tracked points, no processed frames, or missing reps. The HTML report and the mobile prototype render the warning list compactly when present, and stay quiet when it is empty or missing entirely.
 
 Velocity is pixel-based unless calibration is provided. With calibration, summary, frame, and rep metrics also include meters per second.
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from report import render_line_chart, render_rep_table, render_report_html
+from report import render_line_chart, render_rep_table, render_report_html, render_warnings
 
 
 @dataclass(frozen=True)
@@ -81,3 +81,10 @@ def test_render_rep_table_escapes_values():
 
 def test_render_line_chart_handles_empty_data():
     assert "No speed data" in render_line_chart([], stroke="#000", empty_label="No speed data")
+
+
+def test_render_warnings_escapes_warning_text():
+    html = render_warnings(["Tracker <lost> the bar"])
+
+    assert "Tracking warnings" in html
+    assert "Tracker &lt;lost&gt; the bar" in html

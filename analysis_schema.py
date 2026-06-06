@@ -83,6 +83,29 @@ def _validate_quality(quality: Any, errors: list[str]) -> None:
     if quality_reps is not None and not isinstance(quality_reps, list):
         errors.append(f"quality.reps must be a list, got {type(quality_reps).__name__}")
 
+    warnings = quality.get("warnings")
+    if warnings is not None and not (
+        isinstance(warnings, list)
+        and all(isinstance(item, str) for item in warnings)
+    ):
+        errors.append("quality.warnings must be a list of strings")
+
+    for field in ("tracking_coverage_ratio", "tracking_lost_frames"):
+        if field not in quality:
+            continue
+        value = quality[field]
+        if value is None:
+            continue
+        if field == "tracking_lost_frames":
+            if not _is_int(value) or value < 0:
+                errors.append("quality.tracking_lost_frames must be a non-negative integer")
+            continue
+        if not _is_number(value):
+            errors.append(f"quality.{field} must be a number or null")
+            continue
+        if field == "tracking_coverage_ratio" and not 0.0 <= float(value) <= 1.0:
+            errors.append("quality.tracking_coverage_ratio must be between 0 and 1")
+
 
 def validate_analysis_payload(payload: Any) -> list[str]:
     """Return human-readable schema errors for an analysis payload.

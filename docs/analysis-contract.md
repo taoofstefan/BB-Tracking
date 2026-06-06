@@ -78,8 +78,21 @@ Path-quality metrics derived from tracked frame centers and detected rep ranges.
 | `sticking_speed_px_s` | px/s | yes | Slowest positive speed in pixels per second. |
 | `sticking_speed_m_s` | m/s | yes | Calibrated slowest positive speed when scale is available. |
 | `reps` | array | no | Per-rep quality entries. Empty when no reps are detected. |
+| `tracking_coverage_ratio` | ratio in [0, 1] | yes | Tracked points divided by processed frames. Lower values mean the tracker lost the bar more often. |
+| `tracking_lost_frames` | frames | yes | Number of processed frames where the tracker returned no position. |
+| `warnings` | array of strings | no | Human-readable tracking and analysis warnings. Empty when the run looks healthy. |
 
 Each `quality.reps[]` entry contains `index`, `horizontal_drift_px`, `min_center_x`, `max_center_x`, and the same sticking fields scoped to that rep.
+
+The `warnings` list is informational and may be empty for clean runs. It currently surfaces conditions such as:
+
+- "No frames were processed; analysis is unreliable."
+- "No bar position was tracked; the bar may be off-screen or the ROI is wrong."
+- "Tracker lost the bar on N of M frames (coverage X%); results may be unreliable." (coverage below 50%)
+- "Tracker lost the bar on N of M frames (coverage X%)." (coverage below 80%)
+- "No reps were detected in this video."
+
+Clients that ignore unknown fields will continue to work; the new keys are purely additive.
 
 ## Compact Example
 

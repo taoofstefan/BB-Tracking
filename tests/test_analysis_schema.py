@@ -126,6 +126,58 @@ def test_quality_is_optional_but_checked_when_present() -> None:
     assert "quality.reps must be a list, got str" in validate_analysis_payload(payload)
 
 
+def test_quality_warnings_and_coverage_are_validated_when_present() -> None:
+    payload = valid_payload()
+    payload["quality"] = {
+        "reps": [],
+        "warnings": ["Tracker lost the bar", "No reps were detected."],
+        "tracking_coverage_ratio": 0.82,
+        "tracking_lost_frames": 18,
+    }
+    assert validate_analysis_payload(payload) == []
+
+    payload["quality"]["warnings"] = "bad"
+    assert "quality.warnings must be a list of strings" in validate_analysis_payload(payload)
+
+    payload["quality"]["warnings"] = ["ok", 3]
+    assert "quality.warnings must be a list of strings" in validate_analysis_payload(payload)
+
+    payload["quality"]["warnings"] = []
+    payload["quality"]["tracking_coverage_ratio"] = "0.5"
+    assert (
+        "quality.tracking_coverage_ratio must be a number or null"
+        in validate_analysis_payload(payload)
+    )
+
+    payload["quality"]["tracking_coverage_ratio"] = 1.5
+    assert (
+        "quality.tracking_coverage_ratio must be between 0 and 1"
+        in validate_analysis_payload(payload)
+    )
+
+    payload["quality"]["tracking_coverage_ratio"] = None
+    payload["quality"]["tracking_lost_frames"] = -2
+    assert (
+        "quality.tracking_lost_frames must be a non-negative integer"
+        in validate_analysis_payload(payload)
+    )
+
+    payload["quality"]["tracking_lost_frames"] = 2.5
+    assert (
+        "quality.tracking_lost_frames must be a non-negative integer"
+        in validate_analysis_payload(payload)
+    )
+
+    payload["quality"]["tracking_lost_frames"] = None
+    assert validate_analysis_payload(payload) == []
+
+
+def test_quality_warning_fields_optional_for_backward_compat() -> None:
+    payload = valid_payload()
+    payload["quality"] = {"reps": []}
+    assert validate_analysis_payload(payload) == []
+
+
 def test_unknown_fields_are_allowed() -> None:
     payload = valid_payload()
     payload["future_top_level"] = {"anything": "goes"}

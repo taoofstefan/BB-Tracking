@@ -4,7 +4,14 @@ from dataclasses import dataclass
 
 import pytest
 
-from quality import analyze_path_quality, coefficient_of_variation, vertical_rom
+from quality import (
+    PathQuality,
+    analyze_path_quality,
+    analyze_tracking_warnings,
+    attach_tracking_warnings,
+    coefficient_of_variation,
+    vertical_rom,
+)
 from reps import RepRange
 
 
@@ -81,3 +88,105 @@ def test_sticking_frame_ignores_zero_speed_points():
 
     assert quality.sticking_frame == 2
     assert quality.sticking_speed_px_s == 25.0
+
+
+def test_analyze_path_quality_preserves_backward_compatible_defaults():
+    quality = analyze_path_quality([], [])
+
+    assert quality.warnings == []
+    assert quality.tracking_coverage_ratio is None
+    assert quality.tracking_lost_frames is None
+
+
+def test_analyze_tracking_warnings_flags_no_frames():
+    coverage, lost, warnings = analyze_tracking_warnings(0, 0, 0)
+
+    assert coverage is None
+    assert lost is None
+    assert any("No frames" in message for message in warnings)
+
+
+def test_analyze_tracking_warnings_flags_no_tracked_points():
+    coverage, lost, warnings = analyze_tracking_warnings(120, 0, 0)
+
+    assert coverage == 0.0
+    assert lost == 120
+    assert any("No bar position" in message for message in warnings)
+    assert any("No reps" in message for message in warnings)
+
+
+def test_analyze_tracking_warnings_flags_low_coverage_as_high_severity():
+    coverage, lost, warnings = analyze_tracking_warnings(100, 30, 2)
+
+    assert coverage == pytest.approx(0.3)
+    assert lost == 70
+    assert any("unreliable" in message for message in warnings)
+    assert not any("No reps" in message for message in warnings)
+
+
+def test_analyze_tracking_warnings_flags_moderate_coverage_as_caution():
+    coverage, lost, warnings = analyze_tracking_warnings(100, 70, 3)
+
+    assert coverage == pytest.approx(0.7)
+    assert lost == 30
+    assert len(warnings) == 1
+    assert "unreliable" not in warnings[0]
+    assert "70%" in warnings[0]
+
+
+def test_analyze_tracking_warnings_flags_missing_reps():
+    coverage, lost, warnings = analyze_tracking_warnings(100, 100, 0)
+
+    assert coverage == pytest.approx(1.0)
+    assert lost == 0
+    assert warnings == ["No reps were detected in this video."]
+
+
+def test_analyze_tracking_warnings_clean_run_has_no_warnings():
+    coverage, lost, warnings = analyze_tracking_warnings(100, 95, 5)
+
+    assert coverage == pytest.approx(0.95)
+    assert lost == 5
+    assert warnings == []
+
+
+def test_attach_tracking_warnings_decorates_path_quality():
+    base = PathQuality(
+        max_horizontal_drift_px=10,
+        avg_horizontal_drift_px=8.0,
+        rom_consistency_cv=0.1,
+        sticking_rep_index=1,
+        sticking_frame=2,
+        sticking_time_s=0.1,
+        sticking_speed_px_s=50.0,
+        sticking_speed_m_s=0.5,
+        reps=[],
+    )
+
+    decorated = attach_tracking_warnings(base, 100, 20, 0)
+
+    assert decorated.max_horizontal_drift_px == 10
+    assert decorated.tracking_coverage_ratio == pytest.approx(0.2)
+    assert decorated.tracking_lost_frames == 80
+    assert any("unreliable" in message for message in decorated.warnings)
+    assert any("No reps" in message for message in decorated.warnings)
+
+
+def test_attach_tracking_warnings_is_idempotent_on_no_inputs():
+    base = PathQuality(
+        max_horizontal_drift_px=None,
+        avg_horizontal_drift_px=None,
+        rom_consistency_cv=None,
+        sticking_rep_index=None,
+        sticking_frame=None,
+        sticking_time_s=None,
+        sticking_speed_px_s=None,
+        sticking_speed_m_s=None,
+        reps=[],
+    )
+
+    decorated = attach_tracking_warnings(base, 0, 0, 0)
+
+    assert decorated.tracking_coverage_ratio is None
+    assert decorated.tracking_lost_frames is None
+    assert any("No frames" in message for message in decorated.warnings)

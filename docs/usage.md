@@ -163,3 +163,10 @@ With `--json-output`, it also writes:
 Velocity is pixel-based unless calibration is provided. With calibration, summary, frame, and rep metrics also include meters per second.
 
 The annotated video includes a small live HUD with frame time, current speed, peak speed, and tracked point count. Use `--no-hud` to keep only the bounding box and bar path trail.
+
+## Testing
+
+Regression and unit tests are documented in `docs/testing.md`. The
+sample-video regression test is data-driven from
+`tests/fixtures/lifts.json`; see `tests/fixtures/README.md` for the
+manifest schema and how to add new fixtures.

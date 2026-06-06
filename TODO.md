@@ -60,3 +60,17 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - Preferred mobile stack: iOS native, React Native, Flutter, or Kotlin/Swift split?
 - Accuracy target for MVP velocity readings?
 - Local-only MVP or optional sync from the beginning?
+
+## Phase 5: Fixture Library
+
+- [x] Add a `tests/fixtures/lifts.json` manifest that names each sample,
+      its video, ROI, tracker, calibration, rep-segmentation settings, and
+      the path to its compact expected-metrics file.
+- [x] Refactor `tests/test_sample_regression.py` to load cases from the
+      manifest while preserving the 7-rep golden metrics for the existing
+      `lift.mp4` sample.
+- [x] Document the manifest schema in `tests/fixtures/README.md` and the
+      workflow in `docs/testing.md`; cross-link from `docs/usage.md`.
+- [x] Keep only compact expected metrics in git; teach `.gitignore` about
+      generated `*-output.avi` and `*-analysis.json` artifacts under
+      `tests/fixtures/`.

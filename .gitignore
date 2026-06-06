@@ -4,3 +4,10 @@ __pycache__/
 venv/
 *.egg-info/
 .pytest_cache/
+
+# Generated fixture outputs (the manifest under tests/fixtures/lifts.json
+# points at compact expected metrics; anything produced by running the
+# pipeline against a sample should not be committed).
+tests/fixtures/*-output.avi
+tests/fixtures/*-analysis.json
+tests/fixtures/generated/

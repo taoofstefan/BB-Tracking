@@ -21,7 +21,9 @@ uvicorn service:create_app --factory --reload
 - `GET /health` returns `{"status": "ok"}`.
 - `POST /analyze` accepts a multipart video upload and analysis options, then returns the same JSON contract produced by `--json-output`.
 
-The mobile prototype includes a service URL field and health check button. Start the service locally, keep the default `http://127.0.0.1:8000`, and use the health check before wiring analysis uploads.
+The mobile prototype includes a service URL field and health check button. Start the service locally, keep the default `http://127.0.0.1:8000`, and use the health check before pressing Analyze.
+
+The prototype can also send the selected video to `POST /analyze`. Keep the default ROI of `300,120,80,40` for the included sample clip, or edit the ROI field before pressing Analyze.
 
 Example:
 

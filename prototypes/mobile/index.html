@@ -340,6 +340,10 @@
       </div>
       <div class="file-name" id="serviceStatus">Not checked</div>
     </div>
+    <div class="field wide">
+      <label for="roiInput">ROI</label>
+      <input id="roiInput" type="text" value="300,120,80,40">
+    </div>
     <button id="analyzeButton">Analyze</button>
     <button class="secondary" id="resetButton">Reset</button>
   </section>
@@ -386,6 +390,7 @@
   const serviceUrl = document.getElementById("serviceUrl");
   const serviceCheckButton = document.getElementById("serviceCheckButton");
   const serviceStatus = document.getElementById("serviceStatus");
+  const roiInput = document.getElementById("roiInput");
   const repList = document.getElementById("repList");
   const fileName = document.getElementById("fileName");
   const analysisName = document.getElementById("analysisName");
@@ -437,7 +442,16 @@
   serviceCheckButton.addEventListener("click", checkServiceHealth);
 
   analyzeButton.addEventListener("click", () => {
-    renderAnalysis({
+    if (isDemoMode()) {
+      renderAnalysis(buildDemoPayload());
+      status.textContent = "Analysis preview";
+      return;
+    }
+    runServiceAnalysis();
+  });
+
+  function buildDemoPayload() {
+    return {
       summary: {
         rep_count: 5,
         max_speed_m_s: 0.82,
@@ -461,9 +475,8 @@
         mean_speed_m_s: 0.62 - index * 0.05,
         velocity_loss_pct: loss
       }))
-    });
-    status.textContent = "Analysis preview";
-  });
+    };
+  }
 
   resetButton.addEventListener("click", () => {
     marker.style.display = "none";
@@ -476,8 +489,68 @@
     status.textContent = video.hidden ? "Prototype" : "Video loaded";
   });
 
-  if (new URLSearchParams(window.location.search).get("demo") === "1") {
+  if (isDemoMode()) {
     analyzeButton.click();
+  }
+
+  async function runServiceAnalysis() {
+    const baseUrl = normalizeServiceUrl(serviceUrl.value);
+    const roi = roiInput.value.trim();
+    const file = videoInput.files[0];
+
+    if (!file) {
+      analysisName.textContent = "No video selected";
+      analysisName.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (!baseUrl) {
+      serviceStatus.textContent = "Service URL missing";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (!roi) {
+      serviceStatus.textContent = "ROI missing";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+    if (!isValidRoi(roi)) {
+      serviceStatus.textContent = "Invalid ROI";
+      serviceStatus.classList.add("error");
+      status.textContent = "Analysis failed";
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("video", file);
+    formData.append("roi", roi);
+
+    analyzeButton.disabled = true;
+    status.textContent = "Analyzing";
+    analysisName.textContent = "Uploading";
+    analysisName.classList.remove("error");
+    serviceStatus.classList.remove("error");
+    try {
+      const response = await fetch(`${baseUrl}/analyze`, {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      renderAnalysis(payload);
+      analysisName.textContent = "Service response";
+      status.textContent = "Analysis complete";
+    } catch (error) {
+      analysisName.textContent = "Service error";
+      analysisName.classList.add("error");
+      status.textContent = "Analysis failed";
+    } finally {
+      analyzeButton.disabled = false;
+    }
   }
 
   async function checkServiceHealth() {
@@ -510,6 +583,19 @@
 
   function normalizeServiceUrl(value) {
     return value.trim().replace(/\/+$/, "");
+  }
+
+  function isValidRoi(value) {
+    const parts = value.split(",").map((part) => part.trim());
+    if (parts.length !== 4) {
+      return false;
+    }
+    const numbers = parts.map((part) => Number(part));
+    return numbers.every((number) => Number.isInteger(number)) && numbers[2] > 0 && numbers[3] > 0;
+  }
+
+  function isDemoMode() {
+    return new URLSearchParams(window.location.search).get("demo") === "1";
   }
 
   function renderAnalysis(payload) {

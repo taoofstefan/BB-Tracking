@@ -42,6 +42,7 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Add tap-to-select-bar UI.
 - [x] Show set summary and annotated playback.
 - [x] Render velocity and bar path charts from analysis JSON.
+- [x] Add optional analysis service spike.
 
 ## Open Questions
 

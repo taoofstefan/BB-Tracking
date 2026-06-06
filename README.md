@@ -15,7 +15,20 @@ This repo is now being shaped toward a mobile app idea: record or import a lift,
 
 ## Product Direction
 
-See [docs/product-brief.md](docs/product-brief.md) for the app concept and [docs/roadmap.md](docs/roadmap.md) for the first implementation steps.
+See [docs/product-brief.md](docs/product-brief.md) for the app concept, [docs/roadmap.md](docs/roadmap.md) for the first implementation steps, and [docs/usage.md](docs/usage.md) for the current CLI.
+
+## Quick Start
+
+```bash
+python -m pip install -r requirements.txt
+python main.py --input lift.mp4 --output output.avi
+```
+
+For headless runs, pass a known ROI:
+
+```bash
+python main.py --input lift.mp4 --output output.avi --roi 300,120,80,40 --no-display
+```
 
 ## Current Limitations
 

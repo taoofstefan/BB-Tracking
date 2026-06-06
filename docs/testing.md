@@ -25,8 +25,9 @@ Each generated test:
 
 1. Resolves the manifest entry's `video` and `expected_metrics` paths
    relative to the repo root.
-2. Skips cleanly if the video file is missing or the entry has
-   `skip: true`.
+2. Runs an optional manifest `generate` script when a fixture video is
+   missing, then skips cleanly if the video still is not available or the
+   entry has `skip: true`.
 3. Runs `barbell_tracker.track_video` with the manifest's `roi`,
    `tracker`, `scale_px_per_meter`, and rep-segmentation settings.
 4. Validates the resulting analysis payload via
@@ -37,9 +38,10 @@ Each generated test:
 6. Asserts the actual rep count matches the manifest's
    `expected_rep_count` (defaulting to the value in the golden fixture).
 
-The current manifest has a single `lift` entry that exercises the
-MOSSE tracker with the same ROI and calibration that have produced
-the canonical 7-rep golden metrics.
+The current manifest has the original `lift` entry, which exercises the
+MOSSE tracker with the same ROI and calibration that have produced the
+canonical 7-rep golden metrics, plus a generated `synthetic_lift` entry
+that creates a tiny high-contrast video on demand.
 
 ## Fixture Manifest
 
@@ -47,7 +49,8 @@ the canonical 7-rep golden metrics.
 exist and how they should be run. The schema is documented in
 `tests/fixtures/README.md`. To add a new sample:
 
-1. Drop the video into the repo root.
+1. Drop the video into the repo root, or add a small deterministic
+   generator script and declare it in the manifest's `generate` block.
 2. Generate compact expected metrics once and save them under
    `tests/fixtures/`.
 3. Append a new entry to `lifts.json`.
@@ -55,8 +58,9 @@ exist and how they should be run. The schema is documented in
 
 ## Compact Metrics In Git, Generated Artifacts Out
 
-`tests/fixtures/sample_metrics.json` is a small, reviewable subset of
-the full analysis payload — summary plus per-rep summary. Per-frame
+`tests/fixtures/sample_metrics.json` and
+`tests/fixtures/synthetic_metrics.json` are small, reviewable subsets of
+the full analysis payload: summary plus per-rep summary. Per-frame
 telemetry and annotated output videos are not committed.
 
 The repo's `.gitignore` excludes the common generated patterns under

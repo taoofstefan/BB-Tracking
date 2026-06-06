@@ -1,0 +1,37 @@
+{
+  "summary": {
+    "frames_processed": 120,
+    "points_tracked": 115,
+    "rep_count": 3,
+    "avg_speed_px_s": 151.8421052631579,
+    "max_speed_px_s": 270.0,
+    "avg_speed_m_s": 1.5184210526315793,
+    "max_speed_m_s": 2.7
+  },
+  "reps": [
+    {
+      "index": 1,
+      "start_frame": 1,
+      "end_frame": 19,
+      "rom_px": 95,
+      "mean_speed_px_s": 158.33333333333334,
+      "velocity_loss_pct": 0.0
+    },
+    {
+      "index": 2,
+      "start_frame": 40,
+      "end_frame": 59,
+      "rom_px": 100,
+      "mean_speed_px_s": 150.0,
+      "velocity_loss_pct": 5.263157894736848
+    },
+    {
+      "index": 3,
+      "start_frame": 80,
+      "end_frame": 99,
+      "rom_px": 100,
+      "mean_speed_px_s": 150.0,
+      "velocity_loss_pct": 5.263157894736848
+    }
+  ]
+}

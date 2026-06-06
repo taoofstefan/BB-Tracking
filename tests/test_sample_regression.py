@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -32,6 +34,40 @@ def _resolve(path_str: str) -> Path:
     return path
 
 
+def _ensure_fixture_video(video_path: Path, case: dict) -> None:
+    """Generate ``video_path`` from a manifest ``generate`` entry when missing.
+
+    A manifest entry may declare a ``"generate": {"script": ..., "output": ...}``
+    block pointing at a small generator script that materialises a
+    deterministic synthetic fixture. When the expected video file is not
+    on disk, the script is run via the active Python interpreter so the
+    test can proceed without committing binary artifacts. If generation
+    fails or no entry is provided, the caller is expected to skip the
+    case as it would for any other missing video.
+    """
+
+    if video_path.exists():
+        return
+    generate = case.get("generate")
+    if not generate:
+        return
+    script = _resolve(generate["script"])
+    output = _resolve(generate["output"])
+    if not script.exists():
+        raise FileNotFoundError(
+            f"generator script {script} declared by fixture "
+            f"{case.get('name')!r} does not exist"
+        )
+    # Pass --output so the script writes to the manifest-declared path
+    # (its default is the same, but being explicit keeps the call
+    # self-describing and tolerant of manifest overrides).
+    subprocess.run(
+        [sys.executable, str(script), "--output", str(output)],
+        check=True,
+        cwd=str(ROOT),
+    )
+
+
 def _pytest_id(case: dict) -> str:
     return case.get("name") or case.get("video") or "fixture"
 
@@ -59,6 +95,7 @@ def _build_test(case: dict):
             pytest.skip(
                 f"fixture {case.get('name')!r} marked skip=true in manifest"
             )
+        _ensure_fixture_video(video_path, case)
         if not video_path.exists():
             pytest.skip(f"video {video_path} is not available")
 

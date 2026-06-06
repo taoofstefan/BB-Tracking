@@ -71,6 +71,8 @@ Build the old OpenCV proof of concept into a testable barbell analysis pipeline,
 - [x] Refactor `tests/test_sample_regression.py` to load cases from the
       manifest while preserving the 7-rep golden metrics for the existing
       `lift.mp4` sample.
+- [x] Add a generated `synthetic_lift` regression fixture so CI can exercise
+      fixture expansion without committing another binary video.
 - [x] Document the manifest schema in `tests/fixtures/README.md` and the
       workflow in `docs/testing.md`; cross-link from `docs/usage.md`.
 - [x] Keep only compact expected metrics in git; teach `.gitignore` about

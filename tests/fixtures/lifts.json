@@ -16,6 +16,26 @@
       "expected_rep_count": 7,
       "marks": ["regression"],
       "skip": false
+    },
+    {
+      "name": "synthetic_lift",
+      "description": "Deterministic tiny synthetic lift fixture: a high-contrast white rectangle ('bar') moving up and down on a black background. Generated on demand by tests/fixtures/generate_synthetic_lift.py so the video itself does not need to be committed; only the generator script and golden metrics are tracked in git.",
+      "video": "tests/fixtures/generated/synthetic_lift.avi",
+      "roi": [130, 160, 80, 40],
+      "tracker": "mosse",
+      "scale_px_per_meter": 100,
+      "rep_direction": "up",
+      "rep_detector": "direction",
+      "min_rep_rom_px": 20,
+      "min_rep_frames": 3,
+      "generate": {
+        "script": "tests/fixtures/generate_synthetic_lift.py",
+        "output": "tests/fixtures/generated/synthetic_lift.avi"
+      },
+      "expected_metrics": "tests/fixtures/synthetic_metrics.json",
+      "expected_rep_count": 3,
+      "marks": ["regression"],
+      "skip": false
     }
   ]
 }

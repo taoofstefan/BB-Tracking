@@ -14,6 +14,11 @@ and any future video fixtures.
 - `sample_metrics.json` — compact expected metrics for the `lift` sample
   (summary block + per-rep summary). Only compact metrics are kept in git;
   full per-frame telemetry and annotated output videos are not committed.
+- `generate_synthetic_lift.py` — creates the tiny deterministic
+  `synthetic_lift` video on demand under `tests/fixtures/generated/`.
+- `synthetic_metrics.json` — compact expected metrics for the generated
+  synthetic fixture. The generated video is ignored; the generator and
+  metrics stay reviewable in git.
 
 ## Manifest Schema
 
@@ -35,13 +40,14 @@ Each entry in `lifts.json` under the `fixtures` array is a JSON object:
 | `expected_rep_count` | integer | Sanity-checked against the actual rep count. |
 | `marks` | string list | Optional pytest marks applied to the generated test. |
 | `skip` | bool | When true, the test is registered but skipped unconditionally. |
+| `generate` | object | Optional generator block with `script` and `output`. The regression test runs the script with `--output` when the video is missing. |
 
 Unknown fields are ignored, so the manifest can grow additively.
 
 ## Adding A Fixture
 
-1. Add the video to the repo root (or a documented location) and ensure it is
-   not in `.gitignore` if you want it tracked.
+1. Add the video to the repo root (or a documented location), or add a small
+   generator script and point a manifest `generate` block at it.
 2. Generate the compact expected metrics once by running the pipeline with
    `--json-output`, then keep only the `summary` and `reps` blocks.
 3. Append a new entry to `lifts.json` and add the expected-metrics file.
